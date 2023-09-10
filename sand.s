@@ -153,19 +153,22 @@ load_attributes_loop:
 	sta PARTICLE_TILE_COUNT
 
 	; Struct of 3 Arrays for up to 64 tiles: https://forums.nesdev.org/viewtopic.php?t=20955
+	; The particle evuluation order HAS to be from the bottom of the screen to the top,
+	; in order to not have a tile above another one merge, when they're both falling
 
+	; TODO: Is it possible to not store the state, and to just load it from the PPU's background?
 	lda #2 ; Particle tile 1: x
 	sta $40 ; 40-7F
-	lda #8 ; Particle tile 1: y
+	lda #2 ; Particle tile 1: y
 	sta $80 ; 80-BF
 	lda #1 ; Particle tile 1: state (contains up to 4 particles)
 	sta $C0 ; C0-FF
 
-	lda #1 ; Particle tile 2: x
+	lda #2 ; Particle tile 2: x
 	sta $41 ; 40-7F
-	lda #7 ; Particle tile 2: y
+	lda #3 ; Particle tile 2: y
 	sta $81 ; 80-BF
-	lda #15 ; Particle tile 2: state (contains up to 4 particles)
+	lda #14 ; Particle tile 2: state (contains up to 4 particles)
 	sta $C1 ; C0-FF
 
 	; TODO: Why doesn't this fix the camera's position in the first frame?
@@ -233,7 +236,7 @@ particle_tile_loop:
 .endproc
 
 background:
-	.byte $01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
