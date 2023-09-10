@@ -43,6 +43,9 @@ PPU_ADDR = $2006 ; https://www.nesdev.org/wiki/PPU_registers#Address_.28.242006.
 PPU_DATA = $2007 ; https://www.nesdev.org/wiki/PPU_registers#Data_.28.242007.29_.3C.3E_read.2Fwrite
 
 APU_DMC = $4010 ; https://www.nesdev.org/wiki/APU#DMC_($4010%E2%80%93$4013)
+
+OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.29_.3E_write
+
 APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
 
 .proc reset
@@ -92,7 +95,6 @@ load_palettes:
 	; Reading the status register clears the address latch for the upcoming PPU_ADDR stores
 	; https://retrocomputing.stackexchange.com/a/8755/27499
 	lda PPU_STATUS
-
 	; Send #$3f00 to PPU_ADDR
 	; VRAM #$3f00 to #$3f0f is the background palette
 	; https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
@@ -106,39 +108,46 @@ load_palettes_loop:
 	; Write palette byte
 	lda palettes, x
 	sta PPU_DATA
-
-	; Repeat 32 times
 	inx
 	cpx #$20
 	bne load_palettes_loop
 
 load_background:
-	LDA PPU_STATUS ; Reset the address latch
-	LDA #$20
-	STA PPU_ADDR ; High byte
-	LDA #$00
-	STA PPU_ADDR ; Low byte
-	LDX #$00
+	lda PPU_STATUS ; Reset the address latch
+	lda #$20
+	sta PPU_ADDR ; High byte
+	lda #$00
+	sta PPU_ADDR ; Low byte
+
+	; inx is 1 bytes 2 cycles
+	; cpx is 2 bytes 2 cycles
+	; bne is 2 bytes 3 cycles
+	; total is 5 bytes 7 cycles
+	;
+	; dex is 1 bytes 2 cycles
+	; bpl is 2 bytes 3 cycles
+	; total is 3 bytes 5 cycles
+	ldx #$7f
 load_background_loop:
-	LDA background, x
-	STA PPU_DATA
-	INX
-	CPX #$80
-	BNE load_background_loop
+	lda background, x
+	sta PPU_DATA
+	dex
+	bpl load_background_loop
 
 load_attributes:
-	LDA PPU_STATUS ; Reset the address latch
-	LDA #$23
-	STA PPU_ADDR ; High byte
-	LDA #$C0
-	STA PPU_ADDR ; Low byte
-	LDX #$00
+	lda PPU_STATUS ; Reset the address latch
+	lda #$23
+	sta PPU_ADDR ; High byte
+	lda #$C0
+	sta PPU_ADDR ; Low byte
+
+	ldx #$00
 load_attributes_loop:
-	LDA attributes, x
-	STA PPU_DATA
-	INX
-	CPX #$08
-	BNE load_attributes_loop
+	lda attributes, x
+	sta PPU_DATA
+	inx
+	cpx #$08
+	bne load_attributes_loop
 
 enable_rendering:
 	; #%10000000 is "Generate an NMI at the start of the vertical blanking interval"
@@ -164,6 +173,10 @@ background:
 	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
 	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
 	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
 
 attributes:
   .byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
@@ -179,16 +192,16 @@ palettes:
 	; Background0, Color1, Color2, Color3
 	; Note: A sprite palette's background overwrites the background palette's
 	; background color that has the same palette number, so sprite_bg2 -> background_bg2
-	.byte B,G,C,O
-	.byte B,G,C,O
-	.byte B,G,C,O
-	.byte B,G,C,O
+	.byte B,O,C,G
+	.byte B,O,C,G
+	.byte B,O,C,G
+	.byte B,O,C,G
 
 	; Sprite Palette
-	.byte B,G,C,O
-	.byte B,G,C,O
-	.byte B,G,C,O
-	.byte B,G,C,O
+	.byte B,O,C,G
+	.byte B,O,C,G
+	.byte B,O,C,G
+	.byte B,O,C,G
 
 ; Character memory
 .segment "CHARS"
