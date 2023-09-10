@@ -49,9 +49,11 @@ OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.2
 APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
 
 PARTICLE_TILE_COUNT = $39
-X_ARRAY = $40
-Y_ARRAY = $80
-TILE_STATE_ARRAY = $C0
+X_ARRAY = $40 ; $40-$7f
+Y_ARRAY = $80 ; $80-$bf
+TILE_STATE_ARRAY = $c0 ; $c0-$ff
+
+BACKGROUND_BUFFER_ADDRESS = $0440 ; $07ff - 960 + 1, so the second 1 KB half of RAM
 
 .proc reset
 	sei ; Disable IRQs
@@ -75,7 +77,7 @@ vblank_wait1:
 	bit PPU_STATUS ; Transfer the 7th vblank bit to the N flag
 	bpl vblank_wait1 ; Jump while not in vblank
 
-; Clears $0000 to $07ff
+; Clears $0000 to $07ff; all 2 KB of RAM
 clear_memory:
 	lda #$00 ; A = 0
 	sta $0000, x ; $0000 = A, $0001 = A, ... , $00ff = A
@@ -148,15 +150,10 @@ load_attributes_loop:
 	bne load_attributes_loop
 
 	; Stack of particle tiles (NOT a queue)
-	; TODO: Decide what I want to use as offset, rather than the arbitrary $42
 	lda #2 ; Particle tile count
 	sta PARTICLE_TILE_COUNT
 
 	; Struct of 3 Arrays for up to 64 tiles: https://forums.nesdev.org/viewtopic.php?t=20955
-	; The particle evuluation order HAS to be from the bottom of the screen to the top,
-	; in order to not have a tile above another one merge, when they're both falling
-
-	; TODO: Is it possible to not store the state, and to just load it from the PPU's background?
 	lda #2 ; Particle tile 1: x
 	sta $40 ; 40-7F
 	lda #2 ; Particle tile 1: y
@@ -191,15 +188,68 @@ enable_rendering:
 .endproc
 
 .proc main
+	; The particle evaluation order HAS to be from the bottom of the screen to the top,
+	; in order to not have a tile above another one merge, when they're both falling:
+	; [00
+	;  10]
+	; [01
+	;  11]
+	ldx PARTICLE_TILE_COUNT
+	beq particle_tile_loop_end
+	dex
+particle_tile_loop:
+
+	; TODO: Moving down is done by changing the current tile to be clear,
+	; and then creating another tile below us by pushing another particle to the stack
+	; The tile that is clear will be removed by the next main() loop,
+	; but we need to keep it for the current loop so nmi() can show the tile being clear
+
+	; bit PPU_STATUS ; Reset the address latch
+
+	; ldy Y_ARRAY, x ; Load y
+	; tya
+	; lsr ; Now /2
+	; lsr ; Now /4
+	; lsr ; Now /8
+	; clc
+	; adc #$20 ; Add high PPU_ADDR byte
+	; sta PPU_ADDR
+
+	; tya ; Load y
+	; asl ; Now x2
+	; asl ; Now x4
+	; asl ; Now x8
+	; asl ; Now x16
+	; asl ; Now x32
+	; clc
+	; adc X_ARRAY, x ; Add tile x
+	; sta PPU_ADDR
+
+	; lda TILE_STATE_ARRAY, x ; Load tile state
+	; sta PPU_DATA
+
+	dex
+	bpl particle_tile_loop
+particle_tile_loop_end:
+
+	; lda #2 ; Particle tile 2: x
+	; sta $41 ; 40-7F
+	; lda #3 ; Particle tile 2: y
+	; sta $81 ; 80-BF
+	; lda #14 ; Particle tile 2: state (contains up to 4 particles)
+	; sta $C1 ; C0-FF
+
+	; lda #1
+	; sta PARTICLE_TILE_COUNT
+
 	jmp main
 .endproc
 
 .proc nmi
 	ldx PARTICLE_TILE_COUNT
 	beq particle_tile_loop_end
-particle_tile_loop:
 	dex
-
+particle_tile_loop:
 	bit PPU_STATUS ; Reset the address latch
 
 	ldy Y_ARRAY, x ; Load y
@@ -224,11 +274,9 @@ particle_tile_loop:
 	lda TILE_STATE_ARRAY, x ; Load tile state
 	sta PPU_DATA
 
-	cpx #0
-	bne particle_tile_loop
+	dex
+	bpl particle_tile_loop
 particle_tile_loop_end:
-
-	stx PARTICLE_TILE_COUNT
 
 	bit PPU_STATUS
 	lda #0 ; Camera position x
