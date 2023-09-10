@@ -39,10 +39,6 @@ PPU_CTRL = $2000 ; https://www.nesdev.org/wiki/PPU_registers#Controller_.28.2420
 PPU_MASK = $2001 ; https://www.nesdev.org/wiki/PPU_registers#Mask_.28.242001.29_.3E_write
 PPU_STATUS = $2002 ; https://www.nesdev.org/wiki/PPU_registers#Status_.28.242002.29_.3C_read
 
-OAM_ADDR = $2003 ; https://www.nesdev.org/wiki/PPU_registers#OAM_address_.28.242003.29_.3E_write
-OAM_DATA = $2004 ; https://www.nesdev.org/wiki/PPU_registers#OAM_data_.28.242004.29_.3C.3E_read.2Fwrite
-OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.29_.3E_write
-
 PPU_ADDR = $2006 ; https://www.nesdev.org/wiki/PPU_registers#Address_.28.242006.29_.3E.3E_write_x2
 PPU_DATA = $2007 ; https://www.nesdev.org/wiki/PPU_registers#Data_.28.242007.29_.3C.3E_read.2Fwrite
 
@@ -101,9 +97,9 @@ load_palettes:
 	; VRAM #$3f00 to #$3f0f is the background palette
 	; https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
 	lda #$3f
-	sta PPU_ADDR ; PPU_ADDR = #$3f, high byte first
+	sta PPU_ADDR ; High byte
 	lda #$00
-	sta PPU_ADDR ; PPU_ADDR = #$00
+	sta PPU_ADDR ; Low byte
 
 	ldx #$00
 load_palettes_loop:
@@ -117,35 +113,32 @@ load_palettes_loop:
 	bne load_palettes_loop
 
 load_background:
-  LDA $2002             ; read PPU status to reset the high/low latch
-  LDA #$20
-  STA $2006             ; write the high byte of $2000 address
-  LDA #$00
-  STA $2006             ; write the low byte of $2000 address
-  LDX #$00              ; start out at 0
+	LDA PPU_STATUS ; Reset the address latch
+	LDA #$20
+	STA PPU_ADDR ; High byte
+	LDA #$00
+	STA PPU_ADDR ; Low byte
+	LDX #$00
 load_background_loop:
-  LDA background, x     ; load data from address (background + the value in x)
-  STA $2007             ; write to PPU
-  INX                   ; X = X + 1
-  CPX #$80              ; Compare X to hex $80, decimal 128 - copying 128 bytes
-  BNE load_background_loop  ; Branch to load_background_loop if compare was Not Equal to zero
-                        ; if compare was equal to 128, keep going down
-
+	LDA background, x
+	STA PPU_DATA
+	INX
+	CPX #$80
+	BNE load_background_loop
 
 load_attributes:
-  LDA $2002             ; read PPU status to reset the high/low latch
-  LDA #$23
-  STA $2006             ; write the high byte of $23C0 address
-  LDA #$C0
-  STA $2006             ; write the low byte of $23C0 address
-  LDX #$00              ; start out at 0
+	LDA PPU_STATUS ; Reset the address latch
+	LDA #$23
+	STA PPU_ADDR ; High byte
+	LDA #$C0
+	STA PPU_ADDR ; Low byte
+	LDX #$00
 load_attributes_loop:
-  LDA attributes, x      ; load data from address (attributes + the value in x)
-  STA $2007             ; write to PPU
-  INX                   ; X = X + 1
-  CPX #$08              ; Compare X to hex $08, decimal 8 - copying 8 bytes
-  BNE load_attributes_loop  ; Branch to load_attributes_loop if compare was Not Equal to zero
-                        ; if compare was equal to 128, keep going down
+	LDA attributes, x
+	STA PPU_DATA
+	INX
+	CPX #$08
+	BNE load_attributes_loop
 
 enable_rendering:
 	; #%10000000 is "Generate an NMI at the start of the vertical blanking interval"
@@ -163,22 +156,14 @@ enable_rendering:
 .endproc
 
 .proc nmi
-	; Set SPR-RAM address to 0 in OAMADDR
-	ldx #$00
-	stx OAM_ADDR
-
-	; Copy $0200-$02ff into OAM
-	lda #$02
-	sta OAM_DMA
-
 	rti
 .endproc
 
 background:
-	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
-	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
 
 attributes:
   .byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
@@ -194,61 +179,177 @@ palettes:
 	; Background0, Color1, Color2, Color3
 	; Note: A sprite palette's background overwrites the background palette's
 	; background color that has the same palette number, so sprite_bg2 -> background_bg2
-	.byte W,G,C,O
-	.byte W,G,C,O
-	.byte W,G,C,O
-	.byte W,G,C,O
+	.byte B,G,C,O
+	.byte B,G,C,O
+	.byte B,G,C,O
+	.byte B,G,C,O
 
 	; Sprite Palette
-	.byte W,G,C,O
-	.byte W,G,C,O
-	.byte W,G,C,O
-	.byte W,G,C,O
+	.byte B,G,C,O
+	.byte B,G,C,O
+	.byte B,G,C,O
+	.byte B,G,C,O
 
 ; Character memory
 .segment "CHARS"
-	; Character H
-	; Bitplane 0 (low)
-	.byte %11111111
-	.byte %11000011
-	.byte %10100101
-	.byte %10000001
-	.byte %10100101
-	.byte %10111001
-	.byte %10000001
-	.byte %11111111
-	; Bitplane 1 (high)
+	; Bitplane 0 (low bit)
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	; Bitplane 1 (high bit)
 	.byte $00, $00, $00, $00, $00, $00, $00, $00
 
-	; Character E
-	.byte %01111110
-	.byte %11111111
-	.byte %11000011
-	.byte %11111111
-	.byte %11111111
-	.byte %11000011
-	.byte %11000011
-	.byte %11000011
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
 	.byte $00, $00, $00, $00, $00, $00, $00, $00
 
-	; Character L
-	.byte %11000000
-	.byte %11000000
-	.byte %11000000
-	.byte %11000000
-	.byte %11000000
-	.byte %11000000
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %11111111
+	.byte %11111111
 	.byte %11111111
 	.byte %11111111
 	.byte $00, $00, $00, $00, $00, $00, $00, $00
 
-	; Character O
-	.byte %01111110
-	.byte %11100111
-	.byte %11000011
-	.byte %11000011
-	.byte %11000011
-	.byte %11000011
-	.byte %11100111
-	.byte %01111110
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte $00, $00, $00, $00, $00, $00, $00, $00
+
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
 	.byte $00, $00, $00, $00, $00, $00, $00, $00
