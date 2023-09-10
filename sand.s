@@ -48,6 +48,11 @@ OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.2
 
 APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
 
+PARTICLE_TILE_COUNT = $39
+X_ARRAY = $40
+Y_ARRAY = $80
+TILE_STATE_ARRAY = $C0
+
 .proc reset
 	sei ; Disable IRQs
 	cld ; Disable decimal mode
@@ -94,7 +99,7 @@ vblank_wait2:
 load_palettes:
 	; Reading the status register clears the address latch for the upcoming PPU_ADDR stores
 	; https://retrocomputing.stackexchange.com/a/8755/27499
-	lda PPU_STATUS
+	bit PPU_STATUS
 	; Send #$3f00 to PPU_ADDR
 	; VRAM #$3f00 to #$3f0f is the background palette
 	; https://www.nesdev.org/wiki/PPU_palettes#Memory_Map
@@ -113,33 +118,22 @@ load_palettes_loop:
 	bne load_palettes_loop
 
 ; load_background:
-; 	lda PPU_STATUS ; Reset the address latch
+; 	bit PPU_STATUS ; Reset the address latch
 ; 	lda #$20
 ; 	sta PPU_ADDR ; High byte
 ; 	lda #$00
 ; 	sta PPU_ADDR ; Low byte
 
-; 	; inx is 1 bytes 2 cycles
-; 	; cpx is 2 bytes 2 cycles
-; 	; bne is 2 bytes 3 cycles
-; 	; total is 5 bytes 7 cycles
-; 	;
-; 	; dex is 1 bytes 2 cycles
-; 	; bpl is 2 bytes 3 cycles
-; 	; total is 3 bytes 5 cycles
-; 	; ldx #$7f
 ; 	ldx #$00
 ; load_background_loop:
 ; 	lda background, x
 ; 	sta PPU_DATA
-; 	; dex
 ; 	inx
 ; 	cpx #$80
-; 	; bpl load_background_loop
 ; 	bne load_background_loop
 
 load_attributes:
-	lda PPU_STATUS ; Reset the address latch
+	bit PPU_STATUS ; Reset the address latch
 	lda #$23
 	sta PPU_ADDR ; High byte
 	lda #$C0
@@ -153,13 +147,38 @@ load_attributes_loop:
 	cpx #$08
 	bne load_attributes_loop
 
+	; Stack of particle tiles (NOT a queue)
+	; TODO: Decide what I want to use as offset, rather than the arbitrary $42
+	lda #2 ; Particle tile count
+	sta PARTICLE_TILE_COUNT
 
-	ldy #$00
+	; Struct of 3 Arrays for up to 64 tiles: https://forums.nesdev.org/viewtopic.php?t=20955
 
+	lda #2 ; Particle tile 1: x
+	sta $40 ; 40-7F
+	lda #8 ; Particle tile 1: y
+	sta $80 ; 80-BF
+	lda #1 ; Particle tile 1: state (contains up to 4 particles)
+	sta $C0 ; C0-FF
+
+	lda #1 ; Particle tile 2: x
+	sta $41 ; 40-7F
+	lda #7 ; Particle tile 2: y
+	sta $81 ; 80-BF
+	lda #15 ; Particle tile 2: state (contains up to 4 particles)
+	sta $C1 ; C0-FF
+
+	; TODO: Why doesn't this fix the camera's position in the first frame?
+	; bit PPU_STATUS
+	; lda #0 ; Camera position x
+	; sta PPU_SCROLL
+	; lda #0 ; Camera position y
+	; sta PPU_SCROLL
 
 enable_rendering:
 	; #%10000000 is "Generate an NMI at the start of the vertical blanking interval"
-	lda #%10000000
+	; #$00000100 is "VRAM address increment per CPU read/write of PPUDATA (0: add 1, going across; 1: add 32, going down)"
+	lda #%10000100
 	sta PPU_CTRL
 
 	; #%00001000 is "Show background"
@@ -173,52 +192,51 @@ enable_rendering:
 .endproc
 
 .proc nmi
-load_background:
-	lda PPU_STATUS ; Reset the address latch
-	lda #$20
-	sta PPU_ADDR ; High byte
-	; lda #$00
-	tya
-	sta PPU_ADDR ; Low byte
+	ldx PARTICLE_TILE_COUNT
+particle_tile_loop:
+	dex
 
-	; inx is 1 bytes 2 cycles
-	; cpx is 2 bytes 2 cycles
-	; bne is 2 bytes 3 cycles
-	; total is 5 bytes 7 cycles
-	;
-	; dex is 1 bytes 2 cycles
-	; bpl is 2 bytes 3 cycles
-	; total is 3 bytes 5 cycles
-	; ldx #$7f
-	ldx #$00
-load_background_loop:
-	lda background, x
+	bit PPU_STATUS ; Reset the address latch
+
+	ldy Y_ARRAY, x ; Load y
+	tya
+	lsr ; Now /2
+	lsr ; Now /4
+	lsr ; Now /8
+	clc
+	adc #$20 ; Add high PPU_ADDR byte
+	sta PPU_ADDR
+
+	tya ; Load y
+	asl ; Now x2
+	asl ; Now x4
+	asl ; Now x8
+	asl ; Now x16
+	asl ; Now x32
+	clc
+	adc X_ARRAY, x ; Add tile x
+	sta PPU_ADDR
+
+	lda TILE_STATE_ARRAY, x ; Load tile state
 	sta PPU_DATA
-	; dex
-	inx
-	cpx #$1
-	; bpl load_background_loop
-	bne load_background_loop
+
+	cpx #0
+	bne particle_tile_loop
 
 	bit PPU_STATUS
-	; possibly other code goes here
-	cam_position_x = 0
-	lda cam_position_x
+	lda #0 ; Camera position x
 	sta PPU_SCROLL
-	cam_position_y = 0
-	lda cam_position_y
+	lda #0 ; Camera position y
 	sta PPU_SCROLL
-
-	iny
 
 	rti
 .endproc
 
 background:
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $00,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $00,$00,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $00,$00,$00,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $01,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 attributes:
   .byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
