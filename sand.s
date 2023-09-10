@@ -18,11 +18,11 @@
 ; "PPU attribute table" defines 16x16 background metatile palettes https://www.nesdev.org/wiki/PPU_attribute_tables
 
 .segment "HEADER"
-	; .byte "NES", $1A ; iNES header identifier
-	.byte $4E, $45, $53, $1A
+	.byte $4E, $45, $53, $1A ; ASCII "NES" followed by MS-DOS end-of-file
 	.byte 2 ; 2x 16KB PRG code
 	.byte 1 ; 1x  8KB CHR data
-	.byte $01, $00 ; Mapper 0, vertical mirroring
+	.byte $00 ; Horizontal mirroring
+	.byte $00 ; Mapper 0
 
 .segment "VECTORS"
 	.addr nmi ; When an NMI happens (once per frame if enabled) the label 'nmi'
@@ -38,7 +38,7 @@
 PPU_CTRL = $2000 ; https://www.nesdev.org/wiki/PPU_registers#Controller_.28.242000.29_.3E_write
 PPU_MASK = $2001 ; https://www.nesdev.org/wiki/PPU_registers#Mask_.28.242001.29_.3E_write
 PPU_STATUS = $2002 ; https://www.nesdev.org/wiki/PPU_registers#Status_.28.242002.29_.3C_read
-
+PPU_SCROLL = $2005 ; https://www.nesdev.org/wiki/PPU_registers#Scroll_.28.242005.29_.3E.3E_write_x2
 PPU_ADDR = $2006 ; https://www.nesdev.org/wiki/PPU_registers#Address_.28.242006.29_.3E.3E_write_x2
 PPU_DATA = $2007 ; https://www.nesdev.org/wiki/PPU_registers#Data_.28.242007.29_.3C.3E_read.2Fwrite
 
@@ -112,27 +112,31 @@ load_palettes_loop:
 	cpx #$20
 	bne load_palettes_loop
 
-load_background:
-	lda PPU_STATUS ; Reset the address latch
-	lda #$20
-	sta PPU_ADDR ; High byte
-	lda #$00
-	sta PPU_ADDR ; Low byte
+; load_background:
+; 	lda PPU_STATUS ; Reset the address latch
+; 	lda #$20
+; 	sta PPU_ADDR ; High byte
+; 	lda #$00
+; 	sta PPU_ADDR ; Low byte
 
-	; inx is 1 bytes 2 cycles
-	; cpx is 2 bytes 2 cycles
-	; bne is 2 bytes 3 cycles
-	; total is 5 bytes 7 cycles
-	;
-	; dex is 1 bytes 2 cycles
-	; bpl is 2 bytes 3 cycles
-	; total is 3 bytes 5 cycles
-	ldx #$7f
-load_background_loop:
-	lda background, x
-	sta PPU_DATA
-	dex
-	bpl load_background_loop
+; 	; inx is 1 bytes 2 cycles
+; 	; cpx is 2 bytes 2 cycles
+; 	; bne is 2 bytes 3 cycles
+; 	; total is 5 bytes 7 cycles
+; 	;
+; 	; dex is 1 bytes 2 cycles
+; 	; bpl is 2 bytes 3 cycles
+; 	; total is 3 bytes 5 cycles
+; 	; ldx #$7f
+; 	ldx #$00
+; load_background_loop:
+; 	lda background, x
+; 	sta PPU_DATA
+; 	; dex
+; 	inx
+; 	cpx #$80
+; 	; bpl load_background_loop
+; 	bne load_background_loop
 
 load_attributes:
 	lda PPU_STATUS ; Reset the address latch
@@ -148,6 +152,10 @@ load_attributes_loop:
 	inx
 	cpx #$08
 	bne load_attributes_loop
+
+
+	ldy #$00
+
 
 enable_rendering:
 	; #%10000000 is "Generate an NMI at the start of the vertical blanking interval"
@@ -165,18 +173,52 @@ enable_rendering:
 .endproc
 
 .proc nmi
+load_background:
+	lda PPU_STATUS ; Reset the address latch
+	lda #$20
+	sta PPU_ADDR ; High byte
+	; lda #$00
+	tya
+	sta PPU_ADDR ; Low byte
+
+	; inx is 1 bytes 2 cycles
+	; cpx is 2 bytes 2 cycles
+	; bne is 2 bytes 3 cycles
+	; total is 5 bytes 7 cycles
+	;
+	; dex is 1 bytes 2 cycles
+	; bpl is 2 bytes 3 cycles
+	; total is 3 bytes 5 cycles
+	; ldx #$7f
+	ldx #$00
+load_background_loop:
+	lda background, x
+	sta PPU_DATA
+	; dex
+	inx
+	cpx #$1
+	; bpl load_background_loop
+	bne load_background_loop
+
+	bit PPU_STATUS
+	; possibly other code goes here
+	cam_position_x = 0
+	lda cam_position_x
+	sta PPU_SCROLL
+	cam_position_y = 0
+	lda cam_position_y
+	sta PPU_SCROLL
+
+	iny
+
 	rti
 .endproc
 
 background:
 	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
-	.byte $0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $00,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $00,$00,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
+	.byte $00,$00,$00,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F,$0F
 
 attributes:
   .byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
