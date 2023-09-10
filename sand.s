@@ -196,6 +196,7 @@ enable_rendering:
 
 .proc nmi
 	ldx PARTICLE_TILE_COUNT
+	beq particle_tile_loop_end
 particle_tile_loop:
 	dex
 
@@ -225,6 +226,9 @@ particle_tile_loop:
 
 	cpx #0
 	bne particle_tile_loop
+particle_tile_loop_end:
+
+	stx PARTICLE_TILE_COUNT
 
 	bit PPU_STATUS
 	lda #0 ; Camera position x
