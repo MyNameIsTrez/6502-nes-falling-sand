@@ -3,4 +3,5 @@
 !tasks.json
 !.gitignore
 !cl65config.json
-!demo.s
+!README.md
+!sand.s
