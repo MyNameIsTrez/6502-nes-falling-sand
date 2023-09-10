@@ -1,5 +1,5 @@
 # 6502-nes-falling-sand
 
-My first proper Assembly program.
+This [falling-sand game](https://en.wikipedia.org/wiki/Falling-sand_game) is my first "proper" [assembly language](https://en.wikipedia.org/wiki/Assembly_language) program.
 
-Based on [the classic Powder Game](https://dan-ball.jp/en/javagame/dust/), and inspired by other Falling Sand clones.
+This 6502 implementation for the [NES](https://en.wikipedia.org/wiki/Nintendo_Entertainment_System) is inspired by the classic [Powder Game](https://dan-ball.jp/en/javagame/dust/) by DAN-BALL.
