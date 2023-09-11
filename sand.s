@@ -151,7 +151,6 @@ load_attributes_loop:
 	cpx #$08
 	bne load_attributes_loop
 
-	; Stack of particle tiles (NOT a queue)
 	lda #2 ; Particle tile count
 	sta PARTICLE_TILE_COUNT
 
@@ -235,7 +234,7 @@ enable_rendering:
 
 .proc main
 	; The particle evaluation order HAS to be from the bottom of the screen to the top,
-	; in order to not have a tile above another one merge, when they're both falling:
+	; in order to not have a tile merge with the one below it, when they're both falling:
 	; [00
 	;  10]
 	; [01
@@ -244,10 +243,14 @@ enable_rendering:
 	beq particle_tile_loop_end
 	dex
 particle_tile_loop:
-	; TODO: Moving down is done by changing the current tile to be clear,
-	; and then creating another tile below us by pushing another particle to the stack
-	; The tile that is clear will be removed by the next main() loop,
-	; but we need to keep it for the current loop so nmi() can show the tile being clear
+	; TODO: If the particle has background below it AND the particle below it has NOT MOVED, it moves,
+	; potentially creating a new particle below it (depending on whether there was already a partial background tile below it)
+	; The old position's state is set to 0 on move
+	; The particle sets its MOVED boolean to true in the upper nibble of the old position's state byte,
+	; where there are four such booleans per tile
+	; Tiles that have a clear lower nibble will be removed by the next main() loop,
+	; but we need to keep it around for the current loop so nmi() can draw the clear tile
+
 
 	dex
 	bpl particle_tile_loop
