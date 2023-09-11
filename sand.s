@@ -49,11 +49,12 @@ OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.2
 APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
 
 PARTICLE_TILE_COUNT = $39
+
+ptr = $10 ; $10-$11, temporary variable
 X_ARRAY = $40 ; $40-$7f
 Y_ARRAY = $80 ; $80-$bf
-TILE_STATE_ARRAY = $c0 ; $c0-$ff
-
-BACKGROUND_BUFFER_ADDRESS = $0440 ; $07ff - 960 + 1, so the second 1 KB half of RAM
+STATE_ARRAY = $c0 ; $c0-$ff
+BACKGROUND_BUFFER = $0200 ; $0200-$05bf
 
 .proc reset
 	sei ; Disable IRQs
@@ -153,20 +154,42 @@ load_attributes_loop:
 	lda #2 ; Particle tile count
 	sta PARTICLE_TILE_COUNT
 
-	; Struct of 3 Arrays for up to 64 tiles: https://forums.nesdev.org/viewtopic.php?t=20955
-	lda #2 ; Particle tile 1: x
-	sta $40 ; 40-7F
-	lda #2 ; Particle tile 1: y
-	sta $80 ; 80-BF
-	lda #1 ; Particle tile 1: state (contains up to 4 particles)
-	sta $C0 ; C0-FF
+add_particle_1:
+	lda #2
+	sta X_ARRAY+0
+	lda #8
+	sta Y_ARRAY+0
+	lda #1
+	sta STATE_ARRAY+0
 
-	lda #2 ; Particle tile 2: x
-	sta $41 ; 40-7F
-	lda #3 ; Particle tile 2: y
-	sta $81 ; 80-BF
-	lda #14 ; Particle tile 2: state (contains up to 4 particles)
-	sta $C1 ; C0-FF
+copy_particle_1_to_background_buffer:
+	lda Y_ARRAY+0
+	lsr ; Now /2
+	lsr ; Now /4
+	lsr ; Now /8
+	clc
+	adc #>BACKGROUND_BUFFER ; Add high byte
+	sta ptr+1
+
+	lda Y_ARRAY+0
+	asl ; Now x2
+	asl ; Now x4
+	asl ; Now x8
+	asl ; Now x16
+	asl ; Now x32
+	clc
+	adc X_ARRAY+0
+	tay
+	lda #1 ; Load state
+	sta (ptr),y
+
+add_particle_2:
+	lda #2
+	sta X_ARRAY+1
+	lda #3
+	sta Y_ARRAY+1
+	lda #14
+	sta STATE_ARRAY+1
 
 	; TODO: Why doesn't this fix the camera's position in the first frame?
 	; bit PPU_STATUS
@@ -198,49 +221,14 @@ enable_rendering:
 	beq particle_tile_loop_end
 	dex
 particle_tile_loop:
-
 	; TODO: Moving down is done by changing the current tile to be clear,
 	; and then creating another tile below us by pushing another particle to the stack
 	; The tile that is clear will be removed by the next main() loop,
 	; but we need to keep it for the current loop so nmi() can show the tile being clear
 
-	; bit PPU_STATUS ; Reset the address latch
-
-	; ldy Y_ARRAY, x ; Load y
-	; tya
-	; lsr ; Now /2
-	; lsr ; Now /4
-	; lsr ; Now /8
-	; clc
-	; adc #$20 ; Add high PPU_ADDR byte
-	; sta PPU_ADDR
-
-	; tya ; Load y
-	; asl ; Now x2
-	; asl ; Now x4
-	; asl ; Now x8
-	; asl ; Now x16
-	; asl ; Now x32
-	; clc
-	; adc X_ARRAY, x ; Add tile x
-	; sta PPU_ADDR
-
-	; lda TILE_STATE_ARRAY, x ; Load tile state
-	; sta PPU_DATA
-
 	dex
 	bpl particle_tile_loop
 particle_tile_loop_end:
-
-	; lda #2 ; Particle tile 2: x
-	; sta $41 ; 40-7F
-	; lda #3 ; Particle tile 2: y
-	; sta $81 ; 80-BF
-	; lda #14 ; Particle tile 2: state (contains up to 4 particles)
-	; sta $C1 ; C0-FF
-
-	; lda #1
-	; sta PARTICLE_TILE_COUNT
 
 	jmp main
 .endproc
@@ -252,26 +240,25 @@ particle_tile_loop_end:
 particle_tile_loop:
 	bit PPU_STATUS ; Reset the address latch
 
-	ldy Y_ARRAY, x ; Load y
-	tya
+	lda Y_ARRAY, x ; Load y
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
 	clc
-	adc #$20 ; Add high PPU_ADDR byte
+	adc #$20 ; Add nametable 0 high address byte
 	sta PPU_ADDR
 
-	tya ; Load y
+	lda Y_ARRAY, x ; Load y
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc X_ARRAY, x ; Add tile x
+	adc X_ARRAY, x ; Add x
 	sta PPU_ADDR
 
-	lda TILE_STATE_ARRAY, x ; Load tile state
+	lda STATE_ARRAY, x ; Load state
 	sta PPU_DATA
 
 	dex
