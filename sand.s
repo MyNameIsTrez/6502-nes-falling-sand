@@ -48,13 +48,17 @@ OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.2
 
 APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
 
-PARTICLE_TILE_COUNT = $39
+; TODO: Use this constant
+MAX_PARTICLES = #64 ; You can make this much higher if you change the pointer addresses below to not be limited to the zero page
 
-ptr = $10 ; $10-$11, temporary variable
+PTR_HIGH_BYTE = $37 ; $37-$37, temporary
+FRAME_COUNT = $38 ; $38-$38
+PARTICLE_COUNT = $39 ; $39-$39
 X_ARRAY = $40 ; $40-$7f
 Y_ARRAY = $80 ; $80-$bf
 STATE_ARRAY = $c0 ; $c0-$ff
 BACKGROUND_BUFFER = $0200 ; $0200-$05bf
+PREVIOUS_ROW = $05c0 ; $05c0-$05df
 NAMETABLE_0 = $2000 ; $2000-$23ff
 
 .proc reset
@@ -81,15 +85,10 @@ vblank_wait1:
 
 ; Clears $0000 to $07ff; all 2 KB of RAM
 clear_memory:
-	lda #$00 ; A = 0
-	sta $0000, x ; $0000 = A, $0001 = A, ... , $00ff = A
-	sta $0100, x
-	sta $0200, x
-	sta $0300, x
-	sta $0400, x
-	sta $0500, x
-	sta $0600, x
-	sta $0700, x
+	lda #0
+  	.repeat 8, i
+   	sta $0100*i, x
+    	.endrepeat
 
 	; Loop 256 times
 	inx
@@ -151,9 +150,6 @@ load_attributes_loop:
 	cpx #$08
 	bne load_attributes_loop
 
-	lda #2 ; Particle tile count
-	sta PARTICLE_TILE_COUNT
-
 add_particle_1:
 	lda #2
 	sta X_ARRAY+0
@@ -169,7 +165,7 @@ copy_particle_1_to_background_buffer:
 	lsr ; Now /8
 	clc
 	adc #>BACKGROUND_BUFFER ; Add high byte
-	sta ptr+1
+	sta PTR_HIGH_BYTE
 
 	lda Y_ARRAY+0
 	asl ; Now x2
@@ -181,7 +177,7 @@ copy_particle_1_to_background_buffer:
 	adc X_ARRAY+0
 	tay
 	lda STATE_ARRAY+0
-	sta (ptr),y
+	sta (PTR_HIGH_BYTE-1),y
 
 add_particle_2:
 	lda #2
@@ -198,7 +194,7 @@ copy_particle_2_to_background_buffer:
 	lsr ; Now /8
 	clc
 	adc #>BACKGROUND_BUFFER ; Add high byte
-	sta ptr+1
+	sta PTR_HIGH_BYTE
 
 	lda Y_ARRAY+1
 	asl ; Now x2
@@ -210,7 +206,7 @@ copy_particle_2_to_background_buffer:
 	adc X_ARRAY+1
 	tay
 	lda STATE_ARRAY+1
-	sta (ptr),y
+	sta (PTR_HIGH_BYTE-1),y
 
 scroll:
 	; TODO: Why doesn't this fix the camera's position in the first frame?
@@ -233,34 +229,52 @@ enable_rendering:
 .endproc
 
 .proc main
+ 	lda #0
+	sta PARTICLE_COUNT
+
+	; Make a solid floor below the screen
+ 	lda #$FF
+  	.repeat 32, i
+   	sta PREVIOUS_ROW+i
+    	.endrepeat
+ 
+	dex
+particle_tile_loop:
+	; Explanation:
 	; The particle evaluation order HAS to be from the bottom of the screen to the top,
 	; in order to not have a tile merge with the one below it, when they're both falling:
 	; [00
 	;  10]
 	; [01
 	;  11]
-	ldx PARTICLE_TILE_COUNT
-	beq particle_tile_loop_end
-	dex
-particle_tile_loop:
-	; TODO: If the particle has background below it AND the particle below it has NOT MOVED, it moves,
-	; potentially creating a new particle below it (depending on whether there was already a partial background tile below it)
-	; The old position's state is set to 0 on move
-	; The particle sets its MOVED boolean to true in the upper nibble of the old position's state byte,
-	; where there are four such booleans per tile
-	; Tiles that have a clear lower nibble will be removed by the next main() loop,
-	; but we need to keep it around for the current loop so nmi() can draw the clear tile
+	; Start at the bottom row, and loop over all tiles from left to right.
+	; For every tile, move the bottom two particles, and then the top two particles.
+	; If a particle has air below it, it moves down by pushing its old X, Y, and state with itself removed (`and #1<<3; Bit 3`). It then pushes X, Y+1, and the state below it with itself added to it (`ora #1<<3; Bit 3`)
+ 	; If it didn't have air below it, it uses `lda FRAME_COUNT` `and #1` to decide whether to move diagonally down either left or right. It moves by pushing its old X, Y, and state with itself removed. It then pushes X, Y+-1, and the state diagonally below it with itself added to it.
+ 	;     [00
+  	;      10] <- If this one falls left, it might try to push a new tile state, while that tile may have had an update pushed earlier. This should be fine if the nmi array loop starts at index 0, and PREVIOUS_ROW is kept up-to-date at all times.
+   	; [00 [10
+    	;  00] 11]
+     	;
+      	; Old idea, where PARTICLE_COUNT is *not* reset to 0 at the start of main():
+	; If the particle has background below it AND the particle below it has NOT MOVED, it moves,
+	; potentially creating a new particle below it (depending on whether there was already a partial background tile below it).
+	; If the particle moved, the old position's MOVED corner bit is set to 1.
+	; Clear tiles will be removed by the next main() loop,
+	; but we need to keep them around for the current loop so nmi() can draw them having been cleared.
 
 
 	dex
 	bpl particle_tile_loop
 particle_tile_loop_end:
 
+	inc FRAME_COUNT
+
 	jmp main
 .endproc
 
 .proc nmi
-	ldx PARTICLE_TILE_COUNT
+	ldx PARTICLE_COUNT
 	beq particle_tile_loop_end
 	dex
 particle_tile_loop:
