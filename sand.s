@@ -55,6 +55,7 @@ X_ARRAY = $40 ; $40-$7f
 Y_ARRAY = $80 ; $80-$bf
 STATE_ARRAY = $c0 ; $c0-$ff
 BACKGROUND_BUFFER = $0200 ; $0200-$05bf
+NAMETABLE_0 = $2000 ; $2000-$23ff
 
 .proc reset
 	sei ; Disable IRQs
@@ -157,7 +158,7 @@ load_attributes_loop:
 add_particle_1:
 	lda #2
 	sta X_ARRAY+0
-	lda #8
+	lda #2
 	sta Y_ARRAY+0
 	lda #1
 	sta STATE_ARRAY+0
@@ -180,7 +181,7 @@ copy_particle_1_to_background_buffer:
 	clc
 	adc X_ARRAY+0
 	tay
-	lda #1 ; Load state
+	lda STATE_ARRAY+0
 	sta (ptr),y
 
 add_particle_2:
@@ -191,6 +192,28 @@ add_particle_2:
 	lda #14
 	sta STATE_ARRAY+1
 
+copy_particle_2_to_background_buffer:
+	lda Y_ARRAY+1
+	lsr ; Now /2
+	lsr ; Now /4
+	lsr ; Now /8
+	clc
+	adc #>BACKGROUND_BUFFER ; Add high byte
+	sta ptr+1
+
+	lda Y_ARRAY+1
+	asl ; Now x2
+	asl ; Now x4
+	asl ; Now x8
+	asl ; Now x16
+	asl ; Now x32
+	clc
+	adc X_ARRAY+1
+	tay
+	lda STATE_ARRAY+1
+	sta (ptr),y
+
+scroll:
 	; TODO: Why doesn't this fix the camera's position in the first frame?
 	; bit PPU_STATUS
 	; lda #0 ; Camera position x
@@ -245,7 +268,7 @@ particle_tile_loop:
 	lsr ; Now /4
 	lsr ; Now /8
 	clc
-	adc #$20 ; Add nametable 0 high address byte
+	adc #>NAMETABLE_0 ; Add high byte
 	sta PPU_ADDR
 
 	lda Y_ARRAY, x ; Load y
