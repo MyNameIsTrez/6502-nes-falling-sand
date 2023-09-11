@@ -51,7 +51,7 @@ APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.24
 ; TODO: Use this constant
 MAX_PARTICLES = #64 ; You can make this much higher if you change the pointer addresses below to not be limited to the zero page
 
-PTR_HIGH_BYTE = $37 ; $37-$37, temporary
+PTR = $36 ; $36-$37, temporary
 FRAME_COUNT = $38 ; $38-$38
 PARTICLE_COUNT = $39 ; $39-$39
 X_ARRAY = $40 ; $40-$7f
@@ -165,7 +165,7 @@ copy_particle_1_to_background_buffer:
 	lsr ; Now /8
 	clc
 	adc #>BACKGROUND_BUFFER ; Add high byte
-	sta PTR_HIGH_BYTE
+	sta PTR+1
 
 	lda Y_ARRAY+0
 	asl ; Now x2
@@ -177,7 +177,7 @@ copy_particle_1_to_background_buffer:
 	adc X_ARRAY+0
 	tay
 	lda STATE_ARRAY+0
-	sta (PTR_HIGH_BYTE-1),y
+	sta (PTR),y
 
 add_particle_2:
 	lda #2
@@ -194,7 +194,7 @@ copy_particle_2_to_background_buffer:
 	lsr ; Now /8
 	clc
 	adc #>BACKGROUND_BUFFER ; Add high byte
-	sta PTR_HIGH_BYTE
+	sta PTR+1
 
 	lda Y_ARRAY+1
 	asl ; Now x2
@@ -206,7 +206,7 @@ copy_particle_2_to_background_buffer:
 	adc X_ARRAY+1
 	tay
 	lda STATE_ARRAY+1
-	sta (PTR_HIGH_BYTE-1),y
+	sta (PTR),y
 
 scroll:
 	; TODO: Why doesn't this fix the camera's position in the first frame?
