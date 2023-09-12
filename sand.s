@@ -287,18 +287,49 @@ enable_rendering:
 	sta previous_row+i
 	.endrepeat
 
-	ldy #29 ; Loop over all 30 rows
-row:
-	ldx #31 ; Loop over all 32 columns
-column:
-	; foo = x
+	; TODO: Use Lua to do this during runtime
+	; .assert *background_buffer_ptr==0, error, "Low byte of background_buffer_ptr should always be 0"
 
-	; sta previous_row+foo
+	background_buffer_ptr = R0 ; Also uses R1
+	lda #>background_buffer ; Load high byte
+	sta background_buffer_ptr+1
+
+	; TODO: Is it possible to get rid of the loop, and just do
+
+	ldx #29 ; For all 30 rows
+row:
+	.repeat 32, column ; For all 32 column
+
+	; tya
+	; lsr ; Now /2
+	; lsr ; Now /4
+	; lsr ; Now /8
+	; clc
+	; adc #>background_buffer ; Add high byte
+	; sta background_buffer_ptr+1
+
+	; tya
+	; asl ; Now x2
+	; asl ; Now x4
+	; asl ; Now x8
+	; asl ; Now x16
+	; asl ; Now x32
+	; clc
+	; adc x_array+1
+	; tay
+	; lda state_array+1
+	lda #7
+	ldy column
+	lda (background_buffer_ptr),y
+
+	; sta previous_row
+
+	.endrepeat
 
 	dex
-	bpl column
-	dey
-	bpl row
+	bmi row_is_negative
+	jmp row
+row_is_negative:
 
 	inc frame_count
 
