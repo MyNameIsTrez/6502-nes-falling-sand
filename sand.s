@@ -30,7 +30,7 @@
 	.addr reset ; When the processor first turns on or is reset, it will jump to the label 'reset'
 	.addr 0 ; External interrupt IRQ (unused)
 
-.segment "DATA"
+.segment "BACKGROUND_ROM"
 background_rom:
 	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
 	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
@@ -94,6 +94,9 @@ background_rom:
 ; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ; 	.byte 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 
+.segment "BACKGROUND_RAM"
+	background: .res 960
+
 .segment "ZEROPAGE"
 	; Scratch registers
 	R0: .res 1
@@ -132,8 +135,6 @@ background_rom:
 .segment "STARTUP"
 
 .segment "CODE"
-	background: .res 960
-
 	NAMETABLE_0 = $2000 ; $2000-$23ff
 
 	PPU_CONTROL = $2000 ; https://www.nesdev.org/wiki/PPU_registers#Controller_.28.242000.29_.3E_write
@@ -238,10 +239,12 @@ load_background:
 	sta PPU_ADDR
 
 	background_rom_ptr = R0 ; Also uses R1
-	background_ptr = R2 ; Also uses R3
-	column = R4
+	sta background_rom_ptr+0
 
-	ldx #31 ; Highest row
+	background_ptr = R2 ; Also uses R3
+	sta background_ptr+0
+
+	ldx #29 ; Highest row
 row_loop:
 	txa ; Get tile y
 	lsr ; Now /2
@@ -334,6 +337,7 @@ update_rows:
 	ldx highest_active_row
 
 	background_ptr = R0 ; Also uses R1
+	sta background_ptr+0
 
 	; Make a solid floor below the screen
 	; lda #$ff
