@@ -29,37 +29,39 @@
 	.addr reset ; When the processor first turns on or is reset, it will jump to the label 'reset'
 	.addr 0 ; External interrupt IRQ (unused)
 
+.segment "ZEROPAGE"
+	ptr: .res 2
+	frame_count: .res 1
+	particle_count: .res 1
+	x_array: .res 64
+	y_array: .res 64
+	state_array: .res 64
+	previous_row: .res 32
+
+.segment "BSS"
+	background_buffer: .res 960
+
 ; "nes" linker config requires a STARTUP section, even if it's empty
 .segment "STARTUP"
 
-; Main code segment for the program
 .segment "CODE"
+	NAMETABLE_0 = $2000 ; $2000-$23ff
 
-PPU_CTRL = $2000 ; https://www.nesdev.org/wiki/PPU_registers#Controller_.28.242000.29_.3E_write
-PPU_MASK = $2001 ; https://www.nesdev.org/wiki/PPU_registers#Mask_.28.242001.29_.3E_write
-PPU_STATUS = $2002 ; https://www.nesdev.org/wiki/PPU_registers#Status_.28.242002.29_.3C_read
-PPU_SCROLL = $2005 ; https://www.nesdev.org/wiki/PPU_registers#Scroll_.28.242005.29_.3E.3E_write_x2
-PPU_ADDR = $2006 ; https://www.nesdev.org/wiki/PPU_registers#Address_.28.242006.29_.3E.3E_write_x2
-PPU_DATA = $2007 ; https://www.nesdev.org/wiki/PPU_registers#Data_.28.242007.29_.3C.3E_read.2Fwrite
+	PPU_CONTROL = $2000 ; https://www.nesdev.org/wiki/PPU_registers#Controller_.28.242000.29_.3E_write
+	PPU_MASK = $2001 ; https://www.nesdev.org/wiki/PPU_registers#Mask_.28.242001.29_.3E_write
+	PPU_STATUS = $2002 ; https://www.nesdev.org/wiki/PPU_registers#Status_.28.242002.29_.3C_read
+	PPU_SCROLL = $2005 ; https://www.nesdev.org/wiki/PPU_registers#Scroll_.28.242005.29_.3E.3E_write_x2
+	PPU_ADDR = $2006 ; https://www.nesdev.org/wiki/PPU_registers#Address_.28.242006.29_.3E.3E_write_x2
+	PPU_DATA = $2007 ; https://www.nesdev.org/wiki/PPU_registers#Data_.28.242007.29_.3C.3E_read.2Fwrite
 
-APU_DMC = $4010 ; https://www.nesdev.org/wiki/APU#DMC_($4010%E2%80%93$4013)
+	APU_DMC = $4010 ; https://www.nesdev.org/wiki/APU#DMC_($4010%E2%80%93$4013)
 
-OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.29_.3E_write
+	OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.29_.3E_write
 
-APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
+	APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
 
-; TODO: Use this constant
-MAX_PARTICLES = #64 ; You can make this much higher if you change the pointer addresses below to not be limited to the zero page
-
-PTR = $36 ; $36-$37, temporary
-FRAME_COUNT = $38 ; $38-$38
-PARTICLE_COUNT = $39 ; $39-$39
-X_ARRAY = $40 ; $40-$7f
-Y_ARRAY = $80 ; $80-$bf
-STATE_ARRAY = $c0 ; $c0-$ff
-BACKGROUND_BUFFER = $0200 ; $0200-$05bf
-PREVIOUS_ROW = $05c0 ; $05c0-$05df
-NAMETABLE_0 = $2000 ; $2000-$23ff
+	; TODO: Use this constant
+	; MAX_PARTICLES = 64 ; You can make this much higher if you change the pointer addresses below to not be limited to the zero page
 
 .proc reset
 	sei ; Disable IRQs
@@ -72,7 +74,7 @@ NAMETABLE_0 = $2000 ; $2000-$23ff
 	txs
 
 	inx ; Now X = 0
-	stx PPU_CTRL ; Disable NMI
+	stx PPU_CONTROL ; Disable NMI
 	stx PPU_MASK ; Disable rendering
 	stx APU_DMC ; Disable DMC IRQs
 
@@ -86,9 +88,9 @@ vblank_wait1:
 ; Clears $0000 to $07ff; all 2 KB of RAM
 clear_memory:
 	lda #0
-  	.repeat 8, i
-   	sta $0100*i, x
-    	.endrepeat
+	.repeat 8, i
+	sta $0100*i, x
+	.endrepeat
 
 	; Loop 256 times
 	inx
@@ -152,61 +154,69 @@ load_attributes_loop:
 
 add_particle_1:
 	lda #2
-	sta X_ARRAY+0
+	sta x_array+0
 	lda #2
-	sta Y_ARRAY+0
+	sta y_array+0
 	lda #1
-	sta STATE_ARRAY+0
+	sta state_array+0
+
+	background_buffer_ptr = ptr
 
 copy_particle_1_to_background_buffer:
-	lda Y_ARRAY+0
+	lda y_array+0
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
 	clc
-	adc #>BACKGROUND_BUFFER ; Add high byte
-	sta PTR+1
+	adc #>background_buffer ; Add high byte
+	sta background_buffer_ptr+1
 
-	lda Y_ARRAY+0
+	lda y_array+0
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc X_ARRAY+0
+	adc x_array+0
 	tay
-	lda STATE_ARRAY+0
-	sta (PTR),y
+	lda state_array+0
+	; Let's say the particle's x is 2 and its y is 8, then:
+	; background_buffer_ptr+0 = 0 (6502 is little-endian)
+	; background_buffer_ptr+1 = #>background_buffer + particle_y/8 = #$02 + #1 = #$03
+	; y = py*32 + px = 256 + 2 = 2
+	; a = particle_state
+	; (background_buffer_ptr),y = ($36),y = $0300,y = $0302 is where particle_state gets written
+	sta (background_buffer_ptr),y
 
 add_particle_2:
 	lda #2
-	sta X_ARRAY+1
+	sta x_array+1
 	lda #3
-	sta Y_ARRAY+1
+	sta y_array+1
 	lda #14
-	sta STATE_ARRAY+1
+	sta state_array+1
 
 copy_particle_2_to_background_buffer:
-	lda Y_ARRAY+1
+	lda y_array+1
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
 	clc
-	adc #>BACKGROUND_BUFFER ; Add high byte
-	sta PTR+1
+	adc #>background_buffer ; Add high byte
+	sta background_buffer_ptr+1
 
-	lda Y_ARRAY+1
+	lda y_array+1
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc X_ARRAY+1
+	adc x_array+1
 	tay
-	lda STATE_ARRAY+1
-	sta (PTR),y
+	lda state_array+1
+	sta (background_buffer_ptr),y
 
 scroll:
 	; TODO: Why doesn't this fix the camera's position in the first frame?
@@ -220,7 +230,7 @@ enable_rendering:
 	; #%10000000 is "Generate an NMI at the start of the vertical blanking interval"
 	; #$00000100 is "VRAM address increment per CPU read/write of PPUDATA (0: add 1, going across; 1: add 32, going down)"
 	lda #%10000100
-	sta PPU_CTRL
+	sta PPU_CONTROL
 
 	; #%00001000 is "Show background"
 	; #%00000010 is "Show background in leftmost 8 pixels of screen"
@@ -228,59 +238,64 @@ enable_rendering:
 	sta PPU_MASK
 .endproc
 
+; Explanation:
+; The particle evaluation order HAS to be from the bottom of the screen to the top,
+; in order to not have a tile merge with the one below it, when they're both falling:
+; [00
+;  10]
+; [01
+;  11]
+; Start at the bottom row, and loop over all tiles from left to right.
+; For every tile, move the bottom two particles, and then the top two particles.
+; If a particle has air below it, it moves down by pushing its old X, Y, and state with itself removed (`and #1<<3; Bit 3`). It then pushes X, Y+1, and the state below it with itself added to it (`ora #1<<3; Bit 3`)
+; If it didn't have air below it, it uses `lda frame_count` `and #1` to decide whether to move diagonally down either left or right. It moves by pushing its old X, Y, and state with itself removed. It then pushes X, Y+-1, and the state diagonally below it with itself added to it.
+;     [00
+;      10] <- If this one falls left, it might try to push a new tile state, while that tile may have had an update pushed earlier. This should be fine if the nmi array loop starts at index 0, and previous_row is kept up-to-date at all times.
+; [00 [10
+;  00] 11]
+;
+; Old idea, where particle_count is *not* reset to 0 at the start of main():
+; If the particle has background below it AND the particle below it has NOT MOVED, it moves,
+; potentially creating a new particle below it (depending on whether there was already a partial background tile below it).
+; If the particle moved, the old position's MOVED corner bit is set to 1.
+; Clear tiles will be removed by the next main() loop,
+; but we need to keep them around for the current loop so nmi() can draw them having been cleared.
 .proc main
- 	lda #0
-	sta PARTICLE_COUNT
+	lda #0
+	sta particle_count
 
 	; Make a solid floor below the screen
- 	lda #$FF
-  	.repeat 32, i
-   	sta PREVIOUS_ROW+i
-    	.endrepeat
- 
-	dex
-particle_tile_loop:
-	; Explanation:
-	; The particle evaluation order HAS to be from the bottom of the screen to the top,
-	; in order to not have a tile merge with the one below it, when they're both falling:
-	; [00
-	;  10]
-	; [01
-	;  11]
-	; Start at the bottom row, and loop over all tiles from left to right.
-	; For every tile, move the bottom two particles, and then the top two particles.
-	; If a particle has air below it, it moves down by pushing its old X, Y, and state with itself removed (`and #1<<3; Bit 3`). It then pushes X, Y+1, and the state below it with itself added to it (`ora #1<<3; Bit 3`)
- 	; If it didn't have air below it, it uses `lda FRAME_COUNT` `and #1` to decide whether to move diagonally down either left or right. It moves by pushing its old X, Y, and state with itself removed. It then pushes X, Y+-1, and the state diagonally below it with itself added to it.
- 	;     [00
-  	;      10] <- If this one falls left, it might try to push a new tile state, while that tile may have had an update pushed earlier. This should be fine if the nmi array loop starts at index 0, and PREVIOUS_ROW is kept up-to-date at all times.
-   	; [00 [10
-    	;  00] 11]
-     	;
-      	; Old idea, where PARTICLE_COUNT is *not* reset to 0 at the start of main():
-	; If the particle has background below it AND the particle below it has NOT MOVED, it moves,
-	; potentially creating a new particle below it (depending on whether there was already a partial background tile below it).
-	; If the particle moved, the old position's MOVED corner bit is set to 1.
-	; Clear tiles will be removed by the next main() loop,
-	; but we need to keep them around for the current loop so nmi() can draw them having been cleared.
+	lda #$ff
+	.repeat 32, i
+	sta previous_row+i
+	.endrepeat
 
+	ldy #29 ; Loop over all 30 rows
+row:
+	ldx #31 ; Loop over all 32 columns
+column:
+	; foo = x
+
+	; sta previous_row+foo
 
 	dex
-	bpl particle_tile_loop
-particle_tile_loop_end:
+	bpl column
+	dey
+	bpl row
 
-	inc FRAME_COUNT
+	inc frame_count
 
 	jmp main
 .endproc
 
 .proc nmi
-	ldx PARTICLE_COUNT
+	ldx particle_count
 	beq particle_tile_loop_end
 	dex
 particle_tile_loop:
 	bit PPU_STATUS ; Reset the address latch
 
-	lda Y_ARRAY, x ; Load y
+	lda y_array, x ; Load y
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
@@ -288,17 +303,17 @@ particle_tile_loop:
 	adc #>NAMETABLE_0 ; Add high byte
 	sta PPU_ADDR
 
-	lda Y_ARRAY, x ; Load y
+	lda y_array, x ; Load y
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc X_ARRAY, x ; Add x
+	adc x_array, x ; Add x
 	sta PPU_ADDR
 
-	lda STATE_ARRAY, x ; Load state
+	lda state_array, x ; Load state
 	sta PPU_DATA
 
 	dex
@@ -321,7 +336,7 @@ particle_tile_loop_end:
 ; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
 attributes:
-  .byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
+	.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
 
 palettes:
 	G = $00 ; Gray
@@ -357,7 +372,7 @@ palettes:
 	.byte %00000000
 	.byte %00000000
 	; Bitplane 1 (high bit)
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %11110000
 	.byte %11110000
@@ -367,7 +382,7 @@ palettes:
 	.byte %00000000
 	.byte %00000000
 	.byte %00000000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %00001111
 	.byte %00001111
@@ -377,7 +392,7 @@ palettes:
 	.byte %00000000
 	.byte %00000000
 	.byte %00000000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %11111111
 	.byte %11111111
@@ -387,7 +402,7 @@ palettes:
 	.byte %00000000
 	.byte %00000000
 	.byte %00000000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %00000000
 	.byte %00000000
@@ -397,7 +412,7 @@ palettes:
 	.byte %11110000
 	.byte %11110000
 	.byte %11110000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %11110000
 	.byte %11110000
@@ -407,7 +422,7 @@ palettes:
 	.byte %11110000
 	.byte %11110000
 	.byte %11110000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %00001111
 	.byte %00001111
@@ -417,7 +432,7 @@ palettes:
 	.byte %11110000
 	.byte %11110000
 	.byte %11110000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %11111111
 	.byte %11111111
@@ -427,57 +442,57 @@ palettes:
 	.byte %11110000
 	.byte %11110000
 	.byte %11110000
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
-
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
-
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
-
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
-
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %00000000
 	.byte %00000000
 	.byte %00000000
 	.byte %00000000
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte 0,0,0,0,0,0,0,0
+
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %11110000
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte 0,0,0,0,0,0,0,0
+
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte 0,0,0,0,0,0,0,0
+
 	.byte %11111111
 	.byte %11111111
 	.byte %11111111
 	.byte %11111111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte %00001111
+	.byte 0,0,0,0,0,0,0,0
+
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %00000000
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte %11111111
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %11110000
 	.byte %11110000
@@ -487,7 +502,7 @@ palettes:
 	.byte %11111111
 	.byte %11111111
 	.byte %11111111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %00001111
 	.byte %00001111
@@ -497,7 +512,7 @@ palettes:
 	.byte %11111111
 	.byte %11111111
 	.byte %11111111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
 
 	.byte %11111111
 	.byte %11111111
@@ -507,4 +522,4 @@ palettes:
 	.byte %11111111
 	.byte %11111111
 	.byte %11111111
-	.byte $00, $00, $00, $00, $00, $00, $00, $00
+	.byte 0,0,0,0,0,0,0,0
