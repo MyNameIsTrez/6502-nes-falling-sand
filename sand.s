@@ -48,12 +48,14 @@
 	R14: .res 1
 	R15: .res 1
 
+	min_row: .res 1
+	active_rows: .res 1
 	frame_count: .res 1
 	particle_count: .res 1
 	x_array: .res 64
 	y_array: .res 64
 	state_array: .res 64
-	previous_row: .res 32
+	; previous_row: .res 32
 
 .segment "BSS"
 	background_buffer: .res 960
@@ -76,9 +78,6 @@
 	OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.29_.3E_write
 
 	APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
-
-	; TODO: Use this constant
-	; MAX_PARTICLES = 64 ; You can make this much higher if you change the pointer addresses below to not be limited to the zero page
 
 .proc reset
 	sei ; Disable IRQs
@@ -278,60 +277,68 @@ enable_rendering:
 ; Clear tiles will be removed by the next main() loop,
 ; but we need to keep them around for the current loop so nmi() can draw them having been cleared.
 .proc main
+	ldx active_rows
+	bne rows_are_active
+	jmp row_loop_end
+rows_are_active:
+	dex
+
+	background_buffer_ptr = R0 ; Also uses R1
+
 	lda #0
 	sta particle_count
 
 	; Make a solid floor below the screen
-	lda #$ff
-	.repeat 32, i
-	sta previous_row+i
-	.endrepeat
+	; lda #$ff
+	; .repeat 32, i
+	; sta previous_row+i
+	; .endrepeat
 
 	; TODO: Use Lua to do this during runtime
 	; .assert *background_buffer_ptr==0, error, "Low byte of background_buffer_ptr should always be 0"
-
-	background_buffer_ptr = R0 ; Also uses R1
-	lda #>background_buffer ; Load high byte
+row:
+	txa ; Get particle y
+	lsr ; Now /2
+	lsr ; Now /4
+	lsr ; Now /8
+	clc
+	adc #>background_buffer ; Add high byte
 	sta background_buffer_ptr+1
 
-	; TODO: Is it possible to get rid of the loop, and just do
+	.repeat 32, column ; For all 32 columns
+	.scope
 
-	ldx #29 ; For all 30 rows
-row:
-	.repeat 32, column ; For all 32 column
+	txa
+	asl ; Now x2
+	asl ; Now x4
+	asl ; Now x8
+	asl ; Now x16
+	asl ; Now x32
+	clc
+	adc column ; Add particle x
+	tay
 
-	; tya
-	; lsr ; Now /2
-	; lsr ; Now /4
-	; lsr ; Now /8
-	; clc
-	; adc #>background_buffer ; Add high byte
-	; sta background_buffer_ptr+1
+	lda (background_buffer_ptr),y ; Load tile state
 
-	; tya
-	; asl ; Now x2
-	; asl ; Now x4
-	; asl ; Now x8
-	; asl ; Now x16
-	; asl ; Now x32
-	; clc
-	; adc x_array+1
-	; tay
-	; lda state_array+1
-	lda #7
-	ldy column
-	lda (background_buffer_ptr),y
+	beq tile_end ; Go to tile_end if the tile is clear
+
+tile_end:
+
+	.endscope
+	.endrepeat
 
 	; sta previous_row
 
-	.endrepeat
-
 	dex
-	bmi row_is_negative
+	cpx min_row
+	bmi row_loop_end
 	jmp row
-row_is_negative:
+row_loop_end:
 
-	inc frame_count
+	lda frame_count
+vblank_wait:
+	cmp frame_count
+	beq vblank_wait
 
 	jmp main
 .endproc
@@ -343,7 +350,7 @@ row_is_negative:
 particle_tile_loop:
 	bit PPU_STATUS ; Reset the address latch
 
-	lda y_array, x ; Load y
+	lda y_array, x ; Load particle y
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
@@ -351,14 +358,14 @@ particle_tile_loop:
 	adc #>NAMETABLE_0 ; Add high byte
 	sta PPU_ADDR
 
-	lda y_array, x ; Load y
+	lda y_array, x ; Load particle y
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc x_array, x ; Add x
+	adc x_array, x ; Add particle x
 	sta PPU_ADDR
 
 	lda state_array, x ; Load state
@@ -373,6 +380,8 @@ particle_tile_loop_end:
 	sta PPU_SCROLL
 	lda #0 ; Camera position y
 	sta PPU_SCROLL
+
+	inc frame_count
 
 	rti
 .endproc
