@@ -30,7 +30,24 @@
 	.addr 0 ; External interrupt IRQ (unused)
 
 .segment "ZEROPAGE"
-	ptr: .res 2
+	; Scratch registers
+	R0: .res 1
+	R1: .res 1
+	R2: .res 1
+	R3: .res 1
+	R4: .res 1
+	R5: .res 1
+	R6: .res 1
+	R7: .res 1
+	R8: .res 1
+	R9: .res 1
+	R10: .res 1
+	R11: .res 1
+	R12: .res 1
+	R13: .res 1
+	R14: .res 1
+	R15: .res 1
+
 	frame_count: .res 1
 	particle_count: .res 1
 	x_array: .res 64
@@ -160,7 +177,7 @@ add_particle_1:
 	lda #1
 	sta state_array+0
 
-	background_buffer_ptr = ptr
+	background_buffer_ptr = R0 ; Also uses R1
 
 copy_particle_1_to_background_buffer:
 	lda y_array+0
