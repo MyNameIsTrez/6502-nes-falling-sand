@@ -17,9 +17,10 @@
 ; "PPU nametable" defines background using tiles https://www.nesdev.org/wiki/PPU_nametables
 ; "PPU attribute table" defines 16x16 background metatile palettes https://www.nesdev.org/wiki/PPU_attribute_tables
 
+; .byte "NES", $1A ; Magic signature bytes
 .segment "HEADER"
-	.byte $4E, $45, $53, $1A ; ASCII "NES" followed by MS-DOS end-of-file
-	.byte 2 ; 2x 16KB PRG code
+	.byte $4E, $45, $53, $1A ; Magic signature bytes
+	.byte 1 ; 1x 16KB PRG code
 	.byte 1 ; 1x  8KB CHR data
 	.byte $00 ; Horizontal mirroring
 	.byte $00 ; Mapper 0
@@ -28,6 +29,70 @@
 	.addr nmi ; When an NMI happens (once per frame if enabled) the label 'nmi'
 	.addr reset ; When the processor first turns on or is reset, it will jump to the label 'reset'
 	.addr 0 ; External interrupt IRQ (unused)
+
+.segment "DATA"
+background_rom:
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+	.byte 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+; background_rom:
+; 	.byte 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+; 	.byte 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 
 .segment "ZEROPAGE"
 	; Scratch registers
@@ -48,22 +113,27 @@
 	R14: .res 1
 	R15: .res 1
 
-	min_row: .res 1
-	active_rows: .res 1
+	row_activity: .res 1
+	lowest_active_row: .res 1
+	highest_active_row: .res 1
 	frame_count: .res 1
-	particle_count: .res 1
-	x_array: .res 64
-	y_array: .res 64
-	state_array: .res 64
-	; previous_row: .res 32
+	active_tiles: .res 1
 
-.segment "BSS"
-	background_buffer: .res 960
+	; Up to how many particles can be updated per nmi.
+	; If this is upped a lot, the arrays will be outside of the zero page, which'll slow down the code slightly.
+	PARTICLE_ARRAY_LENGTH = 64
+	x_array: .res PARTICLE_ARRAY_LENGTH
+	y_array: .res PARTICLE_ARRAY_LENGTH
+	state_array: .res PARTICLE_ARRAY_LENGTH
+
+	; previous_row: .res 32
 
 ; "nes" linker config requires a STARTUP section, even if it's empty
 .segment "STARTUP"
 
 .segment "CODE"
+	background: .res 960
+
 	NAMETABLE_0 = $2000 ; $2000-$23ff
 
 	PPU_CONTROL = $2000 ; https://www.nesdev.org/wiki/PPU_registers#Controller_.28.242000.29_.3E_write
@@ -86,6 +156,7 @@
 	stx APU_FRAME_COUNTER ; Disable APU frame IRQ
 
 	; Initialize stack register
+	; The stack occupies page $01
 	ldx #$ff
 	txs
 
@@ -138,21 +209,6 @@ load_palettes_loop:
 	cpx #$20
 	bne load_palettes_loop
 
-; load_background:
-; 	bit PPU_STATUS ; Reset the address latch
-; 	lda #$20
-; 	sta PPU_ADDR ; High byte
-; 	lda #$00
-; 	sta PPU_ADDR ; Low byte
-
-; 	ldx #$00
-; load_background_loop:
-; 	lda background, x
-; 	sta PPU_DATA
-; 	inx
-; 	cpx #$80
-; 	bne load_background_loop
-
 load_attributes:
 	bit PPU_STATUS ; Reset the address latch
 	lda #$23
@@ -168,71 +224,62 @@ load_attributes_loop:
 	cpx #$08
 	bne load_attributes_loop
 
-add_particle_1:
-	lda #2
-	sta x_array+0
-	lda #2
-	sta y_array+0
+load_background:
+	; It's fastest to just let the first row get potentially uselessly updated on startup
 	lda #1
-	sta state_array+0
+	sta row_activity
 
-	background_buffer_ptr = R0 ; Also uses R1
+	bit PPU_STATUS ; Reset the address latch
 
-copy_particle_1_to_background_buffer:
-	lda y_array+0
+	; Initialize PPU_ADDR
+	lda #>NAMETABLE_0 ; Add high byte
+	sta PPU_ADDR
+	lda #0
+	sta PPU_ADDR
+
+	background_rom_ptr = R0 ; Also uses R1
+	background_ptr = R2 ; Also uses R3
+	column = R4
+
+	ldx #31 ; Highest row
+row_loop:
+	txa ; Get tile y
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
-	clc
-	adc #>background_buffer ; Add high byte
-	sta background_buffer_ptr+1
+	tay
 
-	lda y_array+0
+	clc
+	adc #>background_rom ; Add high byte
+	sta background_rom_ptr+1
+
+	tya
+	clc
+	adc #>background ; Add high byte
+	sta background_ptr+1
+
+	; If you're running out space for code, roll this back into a loop
+	.repeat 32, column ; For all 32 columns
+	txa ; Get tile y
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc x_array+0
+	adc column ; Add tile x
 	tay
-	lda state_array+0
-	; Let's say the particle's x is 2 and its y is 8, then:
-	; background_buffer_ptr+0 = 0 (6502 is little-endian)
-	; background_buffer_ptr+1 = #>background_buffer + particle_y/8 = #$02 + #1 = #$03
-	; y = py*32 + px = 256 + 2 = 2
-	; a = particle_state
-	; (background_buffer_ptr),y = ($36),y = $0300,y = $0302 is where particle_state gets written
-	sta (background_buffer_ptr),y
 
-add_particle_2:
-	lda #2
-	sta x_array+1
-	lda #3
-	sta y_array+1
-	lda #14
-	sta state_array+1
+	lda (background_rom_ptr),y ; Load ROM tile state
 
-copy_particle_2_to_background_buffer:
-	lda y_array+1
-	lsr ; Now /2
-	lsr ; Now /4
-	lsr ; Now /8
-	clc
-	adc #>background_buffer ; Add high byte
-	sta background_buffer_ptr+1
+	sta (background_ptr),y ; Write tile state
+	sta PPU_DATA ; Write tile state
+	.endrepeat
 
-	lda y_array+1
-	asl ; Now x2
-	asl ; Now x4
-	asl ; Now x8
-	asl ; Now x16
-	asl ; Now x32
-	clc
-	adc x_array+1
-	tay
-	lda state_array+1
-	sta (background_buffer_ptr),y
+	dex
+	bmi row_loop_end
+	jmp row_loop
+row_loop_end:
 
 scroll:
 	; TODO: Why doesn't this fix the camera's position in the first frame?
@@ -270,23 +317,23 @@ enable_rendering:
 ; [00 [10
 ;  00] 11]
 ;
-; Old idea, where particle_count is *not* reset to 0 at the start of main():
+; Old idea, where active_tiles is *not* reset to 0 at the start of main():
 ; If the particle has background below it AND the particle below it has NOT MOVED, it moves,
 ; potentially creating a new particle below it (depending on whether there was already a partial background tile below it).
 ; If the particle moved, the old position's MOVED corner bit is set to 1.
 ; Clear tiles will be removed by the next main() loop,
 ; but we need to keep them around for the current loop so nmi() can draw them having been cleared.
 .proc main
-	ldx active_rows
-	bne rows_are_active
+	ldx row_activity
+	bne update_rows
 	jmp row_loop_end
-rows_are_active:
-	dex
-
-	background_buffer_ptr = R0 ; Also uses R1
-
+update_rows:
 	lda #0
-	sta particle_count
+	sta row_activity
+
+	ldx highest_active_row
+
+	background_ptr = R0 ; Also uses R1
 
 	; Make a solid floor below the screen
 	; lda #$ff
@@ -295,44 +342,44 @@ rows_are_active:
 	; .endrepeat
 
 	; TODO: Use Lua to do this during runtime
-	; .assert *background_buffer_ptr==0, error, "Low byte of background_buffer_ptr should always be 0"
-row:
-	txa ; Get particle y
+	; .assert *background_ptr==0, error, "Low byte of background_ptr should always be 0"
+row_loop:
+	txa ; Get tile y
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
 	clc
-	adc #>background_buffer ; Add high byte
-	sta background_buffer_ptr+1
+	adc #>background ; Add high byte
+	sta background_ptr+1
 
 	.repeat 32, column ; For all 32 columns
 	.scope
-
-	txa
+	txa ; Get tile y
 	asl ; Now x2
 	asl ; Now x4
 	asl ; Now x8
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc column ; Add particle x
+	adc column ; Add tile x
 	tay
 
-	lda (background_buffer_ptr),y ; Load tile state
+	lda (background_ptr),y ; Load tile state
 
-	beq tile_end ; Go to tile_end if the tile is clear
+	beq tile_end ; When the tile is clear
+
+	; TODO: Go to row_loop_end if PARTICLE_ARRAY_LENGTH is reached after pushing one
 
 tile_end:
-
 	.endscope
 	.endrepeat
 
 	; sta previous_row
 
 	dex
-	cpx min_row
+	cpx lowest_active_row
 	bmi row_loop_end
-	jmp row
+	jmp row_loop
 row_loop_end:
 
 	lda frame_count
@@ -344,7 +391,7 @@ vblank_wait:
 .endproc
 
 .proc nmi
-	ldx particle_count
+	ldx active_tiles
 	beq particle_tile_loop_end
 	dex
 particle_tile_loop:
@@ -373,6 +420,10 @@ particle_tile_loop:
 
 	dex
 	bpl particle_tile_loop
+
+	lda #0
+	sta active_tiles
+
 particle_tile_loop_end:
 
 	bit PPU_STATUS
@@ -385,12 +436,6 @@ particle_tile_loop_end:
 
 	rti
 .endproc
-
-; background:
-; 	.byte 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-; 	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
 attributes:
 	.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
