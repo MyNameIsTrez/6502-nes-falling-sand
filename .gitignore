@@ -3,5 +3,6 @@
 !tasks.json
 !.gitignore
 !cl65config.json
+!map.cfg
 !README.md
 !sand.s
