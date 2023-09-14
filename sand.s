@@ -148,6 +148,10 @@ background_rom:
 	R14: .res 1
 	R15: .res 1
 
+	register_a_backup: .res 1
+	register_x_backup: .res 1
+	register_y_backup: .res 1
+
 	frame_ready: .res 1
 	row_activity: .res 1
 	lowest_active_row: .res 1
@@ -426,11 +430,9 @@ row_loop_end:
 
 .proc nmi
 	; Save registers
-	pha
-	txa
-	pha
-	tya
-	pha
+	sta register_a_backup
+	stx register_x_backup
+	sty register_y_backup
 
 	lda frame_ready
 	bne ppu_done
@@ -488,11 +490,9 @@ particle_tile_loop_end:
 ppu_done:
 
 	; Restore registers
-	pla
-	tay
-	pla
-	tax
-	pla
+	lda register_a_backup
+	ldx register_x_backup
+	ldy register_y_backup
 
 	rti
 .endproc
