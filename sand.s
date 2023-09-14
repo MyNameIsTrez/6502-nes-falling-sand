@@ -416,6 +416,9 @@ tile_end:
 	jmp row_loop
 row_loop_end:
 
+	; TODO: Get rid of this, in favor of a RNG boolean LUT, rather than frame_count&1
+	inc frame_count
+
 	lda #0
 	sta frame_ready
 
@@ -484,9 +487,6 @@ particle_tile_loop_end:
 	lda #1
 	sta frame_ready
 ppu_done:
-
-	; TODO: Get rid of this, in favor of a RNG boolean LUT, rather than frame_count&1
-	inc frame_count
 
 	; Restore registers
 	pla
