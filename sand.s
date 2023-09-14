@@ -154,7 +154,7 @@ background_rom:
 	lowest_active_row: .res 1
 	highest_active_row: .res 1
 	frame_count: .res 1
-	active_tiles: .res 1
+	updated_tile_count: .res 1
 
 	; Up to how many particles can be updated per nmi.
 	; If this is upped a lot, the arrays will be outside of the zero page, which'll slow down the code slightly.
@@ -346,13 +346,17 @@ enable_rendering:
 ; [00 [10
 ;  00] 11]
 ;
-; Old idea, where active_tiles is *not* reset to 0 at the start of main():
+; Old idea, where updated_tile_count is *not* reset to 0 at the start of main():
 ; If the particle has background below it AND the particle below it has NOT MOVED, it moves,
 ; potentially creating a new particle below it (depending on whether there was already a partial background tile below it).
 ; If the particle moved, the old position's MOVED corner bit is set to 1.
 ; Clear tiles will be removed by the next main() loop,
 ; but we need to keep them around for the current loop so nmi() can draw them having been cleared.
 .proc main
+wait_on_frame_ready:
+	lda frame_ready
+	beq wait_on_frame_ready
+
 	ldx row_activity
 	bne update_rows
 	jmp row_loop_end
@@ -412,10 +416,8 @@ tile_end:
 	jmp row_loop
 row_loop_end:
 
-	lda frame_count
-vblank_wait:
-	cmp frame_count
-	beq vblank_wait
+	lda #0
+	sta frame_ready
 
 	jmp main
 .endproc
@@ -428,7 +430,10 @@ vblank_wait:
 	tya
 	pha
 
-	ldx active_tiles
+	lda frame_ready
+	bne ppu_done
+
+	ldx updated_tile_count
 	beq particle_tile_loop_end
 	dex
 particle_tile_loop:
@@ -461,8 +466,7 @@ particle_tile_loop:
 	bpl particle_tile_loop
 
 	lda #0
-	sta active_tiles
-
+	sta updated_tile_count
 particle_tile_loop_end:
 
 	; Setting PPU_CONTROL is important to guarantee that bits 0 and 1 are set to 0,
@@ -470,12 +474,18 @@ particle_tile_loop_end:
 	; #%10000000 is "Generate an NMI at the start of the vertical blanking interval"
 	lda #%10000000
 	sta PPU_CONTROL
+
 	bit PPU_STATUS
 	lda #0 ; Camera position x
 	sta PPU_SCROLL
 	lda #0 ; Camera position y
 	sta PPU_SCROLL
 
+	lda #1
+	sta frame_ready
+ppu_done:
+
+	; TODO: Get rid of this, in favor of a RNG boolean LUT, rather than frame_count&1
 	inc frame_count
 
 	; Restore registers
