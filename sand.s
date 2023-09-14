@@ -17,7 +17,6 @@
 ; "PPU nametable" defines background using tiles https://www.nesdev.org/wiki/PPU_nametables
 ; "PPU attribute table" defines 16x16 background metatile palettes https://www.nesdev.org/wiki/PPU_attribute_tables
 
-; .byte "NES", $1A ; Magic signature bytes
 .segment "HEADER"
 	.byte $4E, $45, $53, $1A ; Magic signature bytes
 	.byte 1 ; 1x 16KB PRG code
