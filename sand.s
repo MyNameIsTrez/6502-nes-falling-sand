@@ -148,21 +148,13 @@ background_rom:
 	R14: .res 1
 	R15: .res 1
 
-	register_a_backup: .res 1
-	register_x_backup: .res 1
-	register_y_backup: .res 1
-
 	frame_ready: .res 1
 	row_activity: .res 1
 	lowest_active_row: .res 1
 	highest_active_row: .res 1
 	frame_count: .res 1
 	updated_tile_count: .res 1
-
-	; Up to how many particles can be updated per nmi
-	; If this is upped a lot, the arrays will be outside of the zero page, which'll slow down the code slightly
-	; TODO: Use MAX_PARTICLES
-	; MAX_PARTICLES = 64_UPDATES_PER_FRAME
+	nmi_stack_pointer_backup: .res 1
 
 	; previous_row: .res 32
 
@@ -184,6 +176,14 @@ background_rom:
 	OAM_DMA = $4014 ; https://www.nesdev.org/wiki/PPU_registers#OAM_DMA_.28.244014.29_.3E_write
 
 	APU_FRAME_COUNTER = $4017 ; https://www.nesdev.org/wiki/APU#Frame_Counter_.28.244017.29
+
+	; Up to how many particles can be updated per nmi
+	; If this is upped a lot, the arrays will be outside of the zero page, which'll slow down the code slightly
+	; TODO: Use MAX_PARTICLES
+	; MAX_PARTICLES = 64
+
+	; Near 0, leaving a bit of stack space for any potential jsr during nmi
+	TOP_OF_UPDATED_TILES_STACK_OFFSET = 8
 
 .proc reset
 	sei ; Disable IRQs
@@ -309,9 +309,9 @@ row_loop:
 	adc #column ; Add tile x
 	tay
 
-	lda (background_rom_ptr),y ; Load ROM tile state
+	lda (background_rom_ptr), y ; Load ROM tile state
 
-	sta (background_ptr),y ; Write tile state
+	sta (background_ptr), y ; Write tile state
 	sta PPU_DATA ; Write tile state
 	.endrepeat
 
@@ -377,6 +377,22 @@ update_rows:
 	background_ptr = R0 ; Also uses R1
 	sta background_ptr+0
 
+	y_divided_by_8 = R2
+
+	nametable_tile_address_high_byte = R3
+
+	top_of_stack_pointer = R4 ; Also uses R5
+	lda #0
+	sta top_of_stack_pointer+0
+	lda #1
+	sta top_of_stack_pointer+1
+
+	tile_address_low_byte = R6
+
+	next_tile_stack_offset = R7
+	lda #TOP_OF_UPDATED_TILES_STACK_OFFSET
+	sta next_tile_stack_offset
+
 	; Make a solid floor below the screen
 	; lda #$ff
 	; .repeat 32, i
@@ -390,9 +406,17 @@ row_loop:
 	lsr ; Now /2
 	lsr ; Now /4
 	lsr ; Now /8
+	sta y_divided_by_8
+
 	clc
 	adc #>background ; Add high byte
 	sta background_ptr+1
+
+	lda y_divided_by_8
+
+	clc
+	adc #>NAMETABLE_0 ; Add high byte
+	sta nametable_tile_address_high_byte
 
 	.repeat 32, column ; For all 32 columns
 	.scope
@@ -403,37 +427,33 @@ row_loop:
 	asl ; Now x16
 	asl ; Now x32
 	clc
-	adc column ; Add tile x
+	adc #column ; Add tile x
 	tay
+	sty tile_address_low_byte
 
-	lda (background_ptr),y ; Load tile state
+	lda (background_ptr), y ; Load tile state
 
 	beq tile_end ; When the tile is clear
 
-	brk ; TODO: Remove this
-
 	; TODO: Go to row_loop_end if PARTICLE_ARRAY_LENGTH is reached after pushing one
 
-	; lda state_array, x ; Load state
-	; pha ; Push tile state
+	ldy next_tile_stack_offset
 
-	; lda y_array, x ; Load particle y
-	; lsr ; Now /2
-	; lsr ; Now /4
-	; lsr ; Now /8
-	; clc
-	; adc #>NAMETABLE_0 ; Add high byte
-	; pha ; Push tile y
+	lda nametable_tile_address_high_byte
+	sta (top_of_stack_pointer), y ; Push tile address high byte
+	iny
 
-	; lda y_array, x ; Load particle y
-	; asl ; Now x2
-	; asl ; Now x4
-	; asl ; Now x8
-	; asl ; Now x16
-	; asl ; Now x32
-	; clc
-	; adc x_array, x ; Add particle x
-	; pha ; Push tile x
+	lda tile_address_low_byte
+	sta (top_of_stack_pointer), y ; Push tile address low byte
+	iny
+
+	lda #6
+	sta (top_of_stack_pointer), y ; Push tile state
+	iny
+
+	sty next_tile_stack_offset
+
+	inc updated_tile_count
 
 tile_end:
 	.endscope
@@ -441,9 +461,9 @@ tile_end:
 
 	; sta previous_row
 
-	dex
 	cpx lowest_active_row
-	bmi row_loop_end
+	beq row_loop_end
+	dex
 	jmp row_loop
 row_loop_end:
 
@@ -458,33 +478,44 @@ row_loop_end:
 
 .proc nmi
 	; Save registers
-	sta register_a_backup
-	stx register_x_backup
-	sty register_y_backup
+	pha
+	txa
+	pha
+	tya
+	pha
 
 	lda frame_ready
 	bne ppu_done
 
-	ldx updated_tile_count
+	ldy updated_tile_count
 	beq updated_tiles_loop_end
-	dex
+
+	; Save stack pointer
+	tsx
+	stx nmi_stack_pointer_backup
+
+	; Prepare to start pulling updated tiles
+	ldx #TOP_OF_UPDATED_TILES_STACK_OFFSET-1
+	txs
+
 updated_tiles_loop:
+	dey
+
 	bit PPU_STATUS ; Reset the address latch
 
-	; TODO: Do the x,y -> ppuaddr1,ppuaddr2 ahead of time in main!
+	pla ; Pull tile address high byte
+	sta PPU_ADDR
+	pla ; Pull tile address low byte
+	sta PPU_ADDR
+	pla ; Pull tile state
+	sta PPU_DATA
 
-	pla
-	sta PPU_ADDR ; Tile x
-	pla
-	sta PPU_ADDR ; Tile y
-	pla
-	sta PPU_DATA ; Tile state
+	bne updated_tiles_loop
 
-	dex
-	bpl updated_tiles_loop
+	sty updated_tile_count
 
-	lda #0
-	sta updated_tile_count
+	ldx nmi_stack_pointer_backup
+	txs
 updated_tiles_loop_end:
 
 	; Setting PPU_CONTROL is important to guarantee that bits 0 and 1 are set to 0,
@@ -504,9 +535,11 @@ updated_tiles_loop_end:
 ppu_done:
 
 	; Restore registers
-	lda register_a_backup
-	ldx register_x_backup
-	ldy register_y_backup
+	pla
+	tay
+	pla
+	tax
+	pla
 
 	rti
 .endproc
