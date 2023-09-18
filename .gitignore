@@ -3,6 +3,7 @@
 !tasks.json
 !.gitignore
 !cl65config.json
+!generate_tiles.py
 !map.cfg
 !README.md
 !sand.s

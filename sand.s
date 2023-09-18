@@ -1,21 +1,40 @@
-; sei | Set Interrupt Disable Status | 1 -> I
-; cld | Clear Decimal Mode | 0 -> D
-; ldx | Load Index X with Memory | M -> X
-; stx | Store Index X in Memory | X -> M
-; txs | Transfer Index X to Stack Register | X -> SP
-; inx | Increment Index X by One | X + 1 -> X
-; bit | Test Bits in Memory with Accumulator | bits 7 and 6 of operand are transferred to bit 7 and 6 of SR (N,V); the zero-flag is set according to the result of the operand AND the accumulator (set, if the result is zero, unset otherwise). This allows a quick check of a few bits at once without affecting any of the registers, other than the status register (SR). A AND M, M7 -> N, M6 -> V
-; bpl | Branch on Result Plus | Branch on N = 0
-; lda | Load Accumulator with Memory | M -> A
-; sta | Store Accumulator in Memory | A -> M
-; bne | Branch on Result not Zero | Branch on Z = 0
-; jmp | Jump to New Location | TODO: ?: (PC+1) -> PCL , (PC+2) -> PCH
-; cpx | Compare Memory and Index X | X - M
-; rti | Return from Interrupt | Pull SR, pull PC from stack
+; To run this program: cl65 -C map.cfg -l sand.lst -g --ld-args --dbgfile,sand.dbg --verbose --target nes -o sand.nes sand.s
+; With this as map.cfg:
+; #
+; # Linker script for NROM-128 games
+; # Copyright 2010-2014 Damian Yerrick
+; #
+; # Copying and distribution of this file, with or without
+; # modification, are permitted in any medium without royalty
+; # provided the copyright notice and this notice are preserved.
+; # This file is offered as-is, without any warranty.
+; #
+; MEMORY {
+;   ZP:     start = $10, size = $f0, type = rw;
+;   # use first $10 zeropage locations as locals
+;   HEADER: start = 0, size = $0010, type = ro, file = %O, fill=yes, fillval=$00;
+;   RAM:    start = $0200, size = $03c0, type = rw;
+;   ROM7:   start = $C000, size = $4000, type = ro, file = %O, fill=yes, fillval=$FF;
+;   CHRROM: start = $0000, size = $2000, type = ro, file = %O, fill=yes, fillval=$FF;
+; }
 
-; "PPU pattern table" defines tiles using pixels https://www.nesdev.org/wiki/PPU_pattern_tables
-; "PPU nametable" defines background using tiles https://www.nesdev.org/wiki/PPU_nametables
-; "PPU attribute table" defines 16x16 background metatile palettes https://www.nesdev.org/wiki/PPU_attribute_tables
+; SEGMENTS {
+;   HEADER:         load = HEADER, type = ro, align = $10;
+;   ZEROPAGE:       load = ZP, type = zp;
+; #   DATA:         load = ROM7, type = ro, define = yes, align = $100;
+;   BACKGROUND_ROM: load = ROM7, type = ro, define = yes, align = $100;
+;   BACKGROUND_RAM: load = ROM7, run = RAM, type = rw, define = yes, align = $100;
+; #   BSS:          load = RAM, type = bss, define = yes, align = $100;
+; #   DMC:          load = ROM7, type = ro, align = 64, optional = yes;
+;   CODE:           load = ROM7, type = ro, align = $100;
+; #   RODATA:       load = ROM7, type = ro, align = $100;
+;   VECTORS:        load = ROM7, type = ro, start = $FFFA;
+;   CHARS:          load = CHRROM, type = ro, align = 16, optional = yes;
+; }
+
+; FILES {
+;   %O: format = bin;
+; }
 
 .segment "HEADER"
 	.byte $4E, $45, $53, $1A ; Magic signature bytes
@@ -30,101 +49,37 @@
 	.addr 0 ; External interrupt IRQ (unused)
 
 .segment "BACKGROUND_ROM"
-; background_rom:
-; 	.byte $1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-; 	.byte $f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f
-; 	.byte $0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0,$0
-
-; background_rom:
-; 	.byte $1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1
-; 	.byte $1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1,$1
-; 	.byte $2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2
-; 	.byte $2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2,$2
-; 	.byte $3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3
-; 	.byte $3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3,$3
-; 	.byte $4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4
-; 	.byte $4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4,$4
-; 	.byte $5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5
-; 	.byte $5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5,$5
-; 	.byte $6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6
-; 	.byte $6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6,$6
-; 	.byte $7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7
-; 	.byte $7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7,$7
-; 	.byte $8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8
-; 	.byte $8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8,$8
-; 	.byte $9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9
-; 	.byte $9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9,$9
-; 	.byte $a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a
-; 	.byte $a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a,$a
-; 	.byte $b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b
-; 	.byte $b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b,$b
-; 	.byte $c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c
-; 	.byte $c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c,$c
-; 	.byte $d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d
-; 	.byte $d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d,$d
-; 	.byte $e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e
-; 	.byte $e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e,$e
-; 	.byte $f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f
-; 	.byte $f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f,$f
-
 background_rom:
-	.byte 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-	.byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+	.byte $54,$59,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $75,$95,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+	.byte $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 
 .segment "BACKGROUND_RAM"
 	background: .res 960
@@ -447,13 +402,13 @@ row_loop:
 	sta (top_of_stack_pointer), y ; Push tile address low byte
 	iny
 
-	lda #6
+	lda #0
 	sta (top_of_stack_pointer), y ; Push tile state
 	iny
 
 	sty next_tile_stack_offset
 
-	inc updated_tile_count
+	; inc updated_tile_count
 
 tile_end:
 	.endscope
@@ -548,187 +503,1047 @@ attributes:
 	.byte %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000, %00000000
 
 palettes:
-	G = $00 ; Gray
-	B = $0f ; Black
-	W = $20 ; White
-	C = $21 ; Cyan
-	O = $27 ; Orange
+	B = $0f ; Black; Air
+	G = $10 ; Gray; Stone
+	O = $27 ; Orange; Sand
+	C = $21 ; Cyan; Water
 
 	; Background Palette
 	; Background0, Color1, Color2, Color3
 	; Note: A sprite palette's background overwrites the background palette's
-	; background color that has the same palette number, so sprite_bg2 -> background_bg2
-	.byte B,O,C,G
-	.byte B,O,C,G
-	.byte B,O,C,G
-	.byte B,O,C,G
+	; background color that has the same palette number
+	.byte B,G,O,C
+	.byte B,G,O,C
+	.byte B,G,O,C
+	.byte B,G,O,C
 
 	; Sprite Palette
-	.byte B,O,C,G
-	.byte B,O,C,G
-	.byte B,O,C,G
-	.byte B,O,C,G
+	.byte B,G,O,C
+	.byte B,G,O,C
+	.byte B,G,O,C
+	.byte B,G,O,C
 
-; Character memory
 .segment "CHARS"
-	; Bitplane 0 (low bit)
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	; Bitplane 1 (high bit)
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,air,air at index $0
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
 
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,air,stone at index $1
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
 
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,air,sand at index $2
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
 
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,air,water at index $3
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
 
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,stone,air at index $4
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
 
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,stone,stone at index $5
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
 
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,stone,sand at index $6
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
 
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,stone,water at index $7
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
 
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,sand,air at index $8
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
 
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,sand,stone at index $9
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
 
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,sand,sand at index $a
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
 
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,sand,water at index $b
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
 
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %00000000
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,water,air at index $c
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
 
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11110000
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,water,stone at index $d
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
 
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %00001111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,water,sand at index $e
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
 
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte %11111111
-	.byte 0,0,0,0,0,0,0,0
+	; air,air,water,water at index $f
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,stone,air,air at index $10
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; air,stone,air,stone at index $11
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; air,stone,air,sand at index $12
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; air,stone,air,water at index $13
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; air,stone,stone,air at index $14
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; air,stone,stone,stone at index $15
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; air,stone,stone,sand at index $16
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; air,stone,stone,water at index $17
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; air,stone,sand,air at index $18
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,stone,sand,stone at index $19
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,stone,sand,sand at index $1a
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,stone,sand,water at index $1b
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,stone,water,air at index $1c
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,stone,water,stone at index $1d
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,stone,water,sand at index $1e
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,stone,water,water at index $1f
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,sand,air,air at index $20
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,sand,air,stone at index $21
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,sand,air,sand at index $22
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,sand,air,water at index $23
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,sand,stone,air at index $24
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,sand,stone,stone at index $25
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,sand,stone,sand at index $26
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,sand,stone,water at index $27
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,sand,sand,air at index $28
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,sand,sand,stone at index $29
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,sand,sand,sand at index $2a
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,sand,sand,water at index $2b
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,sand,water,air at index $2c
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,sand,water,stone at index $2d
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,sand,water,sand at index $2e
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,sand,water,water at index $2f
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,water,air,air at index $30
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,water,air,stone at index $31
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,water,air,sand at index $32
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,water,air,water at index $33
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,water,stone,air at index $34
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,water,stone,stone at index $35
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; air,water,stone,sand at index $36
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,water,stone,water at index $37
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; air,water,sand,air at index $38
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,water,sand,stone at index $39
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,water,sand,sand at index $3a
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,water,sand,water at index $3b
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,water,water,air at index $3c
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,water,water,stone at index $3d
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; air,water,water,sand at index $3e
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; air,water,water,water at index $3f
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,air,air,air at index $40
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,air,air,stone at index $41
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,air,air,sand at index $42
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,air,air,water at index $43
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,air,stone,air at index $44
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,air,stone,stone at index $45
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,air,stone,sand at index $46
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,air,stone,water at index $47
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,air,sand,air at index $48
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,air,sand,stone at index $49
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,air,sand,sand at index $4a
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,air,sand,water at index $4b
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,air,water,air at index $4c
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,air,water,stone at index $4d
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,air,water,sand at index $4e
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,air,water,water at index $4f
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,stone,air,air at index $50
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,stone,air,stone at index $51
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,stone,air,sand at index $52
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,stone,air,water at index $53
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,stone,stone,air at index $54
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,stone,stone,stone at index $55
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; High bit plane
+
+	; stone,stone,stone,sand at index $56
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,stone,stone,water at index $57
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; High bit plane
+
+	; stone,stone,sand,air at index $58
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,stone,sand,stone at index $59
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,stone,sand,sand at index $5a
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,stone,sand,water at index $5b
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,stone,water,air at index $5c
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,stone,water,stone at index $5d
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,stone,water,sand at index $5e
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,stone,water,water at index $5f
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,sand,air,air at index $60
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,sand,air,stone at index $61
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,sand,air,sand at index $62
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,sand,air,water at index $63
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,sand,stone,air at index $64
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,sand,stone,stone at index $65
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,sand,stone,sand at index $66
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,sand,stone,water at index $67
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,sand,sand,air at index $68
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,sand,sand,stone at index $69
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,sand,sand,sand at index $6a
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,sand,sand,water at index $6b
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,sand,water,air at index $6c
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,sand,water,stone at index $6d
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,sand,water,sand at index $6e
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,sand,water,water at index $6f
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,water,air,air at index $70
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,water,air,stone at index $71
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,water,air,sand at index $72
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,water,air,water at index $73
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,water,stone,air at index $74
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,water,stone,stone at index $75
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; High bit plane
+
+	; stone,water,stone,sand at index $76
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,water,stone,water at index $77
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; High bit plane
+
+	; stone,water,sand,air at index $78
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,water,sand,stone at index $79
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,water,sand,sand at index $7a
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,water,sand,water at index $7b
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,water,water,air at index $7c
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,water,water,stone at index $7d
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; stone,water,water,sand at index $7e
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; stone,water,water,water at index $7f
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,air,air,air at index $80
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,air,air,stone at index $81
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,air,air,sand at index $82
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,air,air,water at index $83
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,air,stone,air at index $84
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,air,stone,stone at index $85
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,air,stone,sand at index $86
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,air,stone,water at index $87
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,air,sand,air at index $88
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,air,sand,stone at index $89
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,air,sand,sand at index $8a
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,air,sand,water at index $8b
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,air,water,air at index $8c
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,air,water,stone at index $8d
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,air,water,sand at index $8e
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,air,water,water at index $8f
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,stone,air,air at index $90
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,stone,air,stone at index $91
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,stone,air,sand at index $92
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,stone,air,water at index $93
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,stone,stone,air at index $94
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,stone,stone,stone at index $95
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; sand,stone,stone,sand at index $96
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,stone,stone,water at index $97
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; sand,stone,sand,air at index $98
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,stone,sand,stone at index $99
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,stone,sand,sand at index $9a
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,stone,sand,water at index $9b
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,stone,water,air at index $9c
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,stone,water,stone at index $9d
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,stone,water,sand at index $9e
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,stone,water,water at index $9f
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,sand,air,air at index $a0
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,sand,air,stone at index $a1
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,sand,air,sand at index $a2
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,sand,air,water at index $a3
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,sand,stone,air at index $a4
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,sand,stone,stone at index $a5
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,sand,stone,sand at index $a6
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,sand,stone,water at index $a7
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,sand,sand,air at index $a8
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,sand,sand,stone at index $a9
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,sand,sand,sand at index $aa
+	.byte $0,$0,$0,$0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,sand,sand,water at index $ab
+	.byte $0,$0,$0,$0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,sand,water,air at index $ac
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,sand,water,stone at index $ad
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,sand,water,sand at index $ae
+	.byte $0,$0,$0,$0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,sand,water,water at index $af
+	.byte $0,$0,$0,$0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,water,air,air at index $b0
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,water,air,stone at index $b1
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,water,air,sand at index $b2
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,water,air,water at index $b3
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,water,stone,air at index $b4
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,water,stone,stone at index $b5
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; sand,water,stone,sand at index $b6
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,water,stone,water at index $b7
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; sand,water,sand,air at index $b8
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,water,sand,stone at index $b9
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,water,sand,sand at index $ba
+	.byte $f,$f,$f,$f,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,water,sand,water at index $bb
+	.byte $f,$f,$f,$f,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,water,water,air at index $bc
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,water,water,stone at index $bd
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; sand,water,water,sand at index $be
+	.byte $f,$f,$f,$f,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; sand,water,water,water at index $bf
+	.byte $f,$f,$f,$f,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,air,air,air at index $c0
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,air,air,stone at index $c1
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,air,air,sand at index $c2
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,air,air,water at index $c3
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,air,stone,air at index $c4
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,air,stone,stone at index $c5
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,air,stone,sand at index $c6
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,air,stone,water at index $c7
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,air,sand,air at index $c8
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,air,sand,stone at index $c9
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,air,sand,sand at index $ca
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,air,sand,water at index $cb
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,air,water,air at index $cc
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,air,water,stone at index $cd
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,air,water,sand at index $ce
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,air,water,water at index $cf
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,stone,air,air at index $d0
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,stone,air,stone at index $d1
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,stone,air,sand at index $d2
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,stone,air,water at index $d3
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,stone,stone,air at index $d4
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,stone,stone,stone at index $d5
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; High bit plane
+
+	; water,stone,stone,sand at index $d6
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,stone,stone,water at index $d7
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; High bit plane
+
+	; water,stone,sand,air at index $d8
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,stone,sand,stone at index $d9
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,stone,sand,sand at index $da
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,stone,sand,water at index $db
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,stone,water,air at index $dc
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,stone,water,stone at index $dd
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,stone,water,sand at index $de
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,stone,water,water at index $df
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,sand,air,air at index $e0
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,sand,air,stone at index $e1
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,sand,air,sand at index $e2
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,sand,air,water at index $e3
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,sand,stone,air at index $e4
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,sand,stone,stone at index $e5
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,sand,stone,sand at index $e6
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,sand,stone,water at index $e7
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,sand,sand,air at index $e8
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,sand,sand,stone at index $e9
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,sand,sand,sand at index $ea
+	.byte $f0,$f0,$f0,$f0,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,sand,sand,water at index $eb
+	.byte $f0,$f0,$f0,$f0,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,sand,water,air at index $ec
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,sand,water,stone at index $ed
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,sand,water,sand at index $ee
+	.byte $f0,$f0,$f0,$f0,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,sand,water,water at index $ef
+	.byte $f0,$f0,$f0,$f0,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,water,air,air at index $f0
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,water,air,stone at index $f1
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,water,air,sand at index $f2
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,water,air,water at index $f3
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,water,stone,air at index $f4
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,water,stone,stone at index $f5
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; High bit plane
+
+	; water,water,stone,sand at index $f6
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,water,stone,water at index $f7
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; High bit plane
+
+	; water,water,sand,air at index $f8
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,water,sand,stone at index $f9
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,water,sand,sand at index $fa
+	.byte $ff,$ff,$ff,$ff,$0,$0,$0,$0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,water,sand,water at index $fb
+	.byte $ff,$ff,$ff,$ff,$f,$f,$f,$f ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,water,water,air at index $fc
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,water,water,stone at index $fd
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; High bit plane
+
+	; water,water,water,sand at index $fe
+	.byte $ff,$ff,$ff,$ff,$f0,$f0,$f0,$f0 ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
+
+	; water,water,water,water at index $ff
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; Low bit plane
+	.byte $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff ; High bit plane
