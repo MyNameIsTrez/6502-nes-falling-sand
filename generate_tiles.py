@@ -21,41 +21,23 @@ def main():
         bitplane_2_tr = bool(tile_index & 0b00100000)
         bitplane_2_tl = bool(tile_index & 0b10000000)
 
-        bitplane_1_values = []
-        for _cell_row in range(4):
-            row_value = 0
-            row_value |= bitplane_1_tr * 0b00001111
-            row_value |= bitplane_1_tl * 0b11110000
-            bitplane_1_values.append(hx(row_value))
+        bitplane_1_values = get_bitplane_half(
+            bitplane_1_tl, bitplane_1_tr
+        ) + get_bitplane_half(bitplane_1_bl, bitplane_1_br)
 
-        for _cell_row in range(4):
-            row_value = 0
-            row_value |= bitplane_1_br * 0b00001111
-            row_value |= bitplane_1_bl * 0b11110000
-            bitplane_1_values.append(hx(row_value))
-
-        bitplane_2_values = []
-        for _cell_row in range(4):
-            row_value = 0
-            row_value |= bitplane_2_tr * 0b00001111
-            row_value |= bitplane_2_tl * 0b11110000
-            bitplane_2_values.append(hx(row_value))
-
-        for _cell_row in range(4):
-            row_value = 0
-            row_value |= bitplane_2_br * 0b00001111
-            row_value |= bitplane_2_bl * 0b11110000
-            bitplane_2_values.append(hx(row_value))
+        bitplane_2_values = get_bitplane_half(
+            bitplane_2_tl, bitplane_2_tr
+        ) + get_bitplane_half(bitplane_2_bl, bitplane_2_br)
 
         print(
             "\t; "
-            + material(bitplane_1_tl | (bitplane_2_tl << 1))
+            + get_material(bitplane_1_tl | (bitplane_2_tl << 1))
             + ","
-            + material(bitplane_1_tr | (bitplane_2_tr << 1))
+            + get_material(bitplane_1_tr | (bitplane_2_tr << 1))
             + ","
-            + material(bitplane_1_bl | (bitplane_2_bl << 1))
+            + get_material(bitplane_1_bl | (bitplane_2_bl << 1))
             + ","
-            + material(bitplane_1_br | (bitplane_2_br << 1))
+            + get_material(bitplane_1_br | (bitplane_2_br << 1))
             + f" at index {hx(tile_index)}"
         )
 
@@ -66,11 +48,15 @@ def main():
         print("")
 
 
+def get_bitplane_half(left, right):
+    return [hx((left * 0b11110000) | (right * 0b00001111)) for _cell_row in range(4)]
+
+
 def hx(n):
     return hex(n).replace("0x", "$")
 
 
-def material(n):
+def get_material(n):
     if n == 0:
         return "air"
     if n == 1:
